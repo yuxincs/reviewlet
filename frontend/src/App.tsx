@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { reviewApi } from './api/mock';
+import { examples } from './api/examples';
 import { CodeEditor } from './components/CodeEditor';
 import { Icon } from './components/Icon';
 import { SnippetSidebar } from './components/SnippetSidebar';
 import { ThemeToggle } from './components/ThemeToggle';
 import { WelcomePage } from './components/WelcomePage';
-import type { Review, ReviewApi } from './types/review';
+import type { Review, ReviewApi, ReviewInput } from './types/review';
 import './styles.css';
 
 export default function App({ api = reviewApi }: { api?: ReviewApi }) {
@@ -95,14 +96,19 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     setError('');
   }
   function newSnippet() {
-    persist(activeSnippet);
-    closeMobileSidebar();
-    const snippet: Review = {
-      id: crypto.randomUUID(),
+    addSnippet({
       title: 'Untitled snippet',
       code: '',
       language: 'typescript',
       context: '',
+    });
+  }
+  function addSnippet(input: ReviewInput) {
+    persist(activeSnippet);
+    closeMobileSidebar();
+    const snippet: Review = {
+      ...input,
+      id: crypto.randomUUID(),
       summary: '',
       findings: [],
       createdAt: new Date().toISOString(),
@@ -227,7 +233,10 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
               Loading your snippets…
             </div>
           ) : !activeSnippet ? (
-            <WelcomePage onCreate={newSnippet} />
+            <WelcomePage
+              onCreate={newSnippet}
+              onDemo={() => addSnippet(examples.database)}
+            />
           ) : (
             <CodeEditor
               code={activeSnippet?.code ?? ''}

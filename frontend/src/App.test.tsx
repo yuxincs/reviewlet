@@ -9,6 +9,7 @@ import {
 } from '@testing-library/react';
 import App from './App';
 import { createMockReviewApi } from './api/mock';
+import { examples } from './api/examples';
 
 beforeEach(() => localStorage.clear());
 afterEach(() => {
@@ -227,6 +228,29 @@ describe('snippet editor workspace', () => {
     expect(
       screen.getByRole('button', { name: 'Untitled snippet' }),
     ).toBeTruthy();
+  });
+
+  it('opens an editable demo snippet and persists it in the library', async () => {
+    localStorage.setItem('reviewlet.mock-reviews.v1', '[]');
+    const api = createMockReviewApi(localStorage, 0);
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Try a demo' }));
+    expect(
+      screen.queryByRole('heading', { name: /Smarter reviews/ }),
+    ).toBeNull();
+    expect(
+      screen.getByRole('button', { name: examples.database.title }),
+    ).toBeTruthy();
+    const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Code snippet',
+    });
+    expect(editor.value).toBe(examples.database.code);
+    const stored = await createMockReviewApi(localStorage, 0).listReviews();
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject(examples.database);
+    fireEvent.change(editor, { target: { value: 'const demo = true;' } });
+    fireEvent.blur(editor);
+    expect((await api.listReviews())[0].code).toBe('const demo = true;');
   });
 
   it('reports a save failure without discarding the edit', async () => {

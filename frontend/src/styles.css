@@ -1621,8 +1621,28 @@ textarea::placeholder {
   line-height: 1.8;
   margin-top: 20px;
 }
-.welcome-cta {
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   margin-top: 24px;
+}
+.welcome-demo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 45px;
+  padding: 10px 8px;
+  border-radius: 5px;
+  color: var(--accent-text);
+  font-size: 13px;
+}
+.welcome-demo:hover {
+  background: var(--accent-soft);
+}
+.welcome-cta {
   min-height: 45px;
   padding: 12px 19px;
   gap: 16px;
@@ -1839,10 +1859,14 @@ textarea::placeholder {
     line-height: 1.6;
     margin-top: 12px;
   }
-  .welcome-cta {
-    min-height: 38px;
+  .welcome-actions {
     margin-top: 16px;
-    padding: 9px 16px;
+  }
+  .welcome-cta,
+  .welcome-demo {
+    min-height: 38px;
+    padding: 9px 12px;
+    font-size: 12px;
   }
   .welcome-assurance {
     margin-top: 10px;

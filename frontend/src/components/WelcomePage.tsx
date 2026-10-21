@@ -1,6 +1,12 @@
 import { Icon } from './Icon';
 
-export function WelcomePage({ onCreate }: { onCreate: () => void }) {
+export function WelcomePage({
+  onCreate,
+  onDemo,
+}: {
+  onCreate: () => void;
+  onDemo: () => void;
+}) {
   return (
     <section className="welcome-page" aria-labelledby="welcome-heading">
       <div className="welcome-hero">
@@ -19,10 +25,16 @@ export function WelcomePage({ onCreate }: { onCreate: () => void }) {
             with intelligent code reviews. Paste a snippet. Start a
             conversation.
           </p>
-          <button className="primary-button welcome-cta" onClick={onCreate}>
-            Create a snippet
-            <Icon name="arrow" size={17} />
-          </button>
+          <div className="welcome-actions">
+            <button className="primary-button welcome-cta" onClick={onCreate}>
+              Create a snippet
+              <Icon name="arrow" size={17} />
+            </button>
+            <button className="welcome-demo" onClick={onDemo}>
+              <Icon name="code" size={16} />
+              Try a demo
+            </button>
+          </div>
           <div className="welcome-assurance">
             <Icon name="code" size={13} />
             No repository needed. Just your code.

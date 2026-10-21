@@ -1,91 +1,18 @@
 import { useLayoutEffect, useId, useRef, type UIEvent } from 'react';
 import type { Finding, Language, Severity } from '../types/review';
 import type { ReviewAnchor } from './ReviewPopover';
-import {
-  flowColor,
-  useFlowPalette,
-  flowStyleForHue,
-  referenceKey,
-  type FlowColor,
-} from '../flowColors';
+import { flowColor, useFlowPalette, referenceKey } from '../flowColors';
 import { DataFlowOverlay } from './DataFlowOverlay';
 import { CodeSamples } from './CodeSamples';
+import { CodeHighlight } from './CodeHighlight';
 import type { GuideRange, GuideFlowNode } from '../demoReviewGuide';
 import { languageLabels } from '../languages';
 import { Icon } from './Icon';
-
-const keywords =
-  /^(import|from|export|async|await|function|const|let|return|if|else|null|undefined|def|func|string|error|type|interface)$/;
-function highlight(
-  line: string,
-  ranges: GuideRange[],
-  dimContext: boolean,
-  colors: Map<string, FlowColor>,
-  palette: ReturnType<typeof useFlowPalette>,
-) {
-  let offset = 0;
-  return line
-    .split(/('[^']*'|"[^"]*"|`[^`]*`|\/\/.*$|#.*$|\b\w+\b)/g)
-    .map((token, index) => {
-      const kind =
-        token.startsWith('//') || token.startsWith('#')
-          ? 'comment'
-          : /^['"`]/.test(token)
-            ? 'string'
-            : keywords.test(token)
-              ? 'keyword'
-              : /^\d+$/.test(token)
-                ? 'number'
-                : '';
-      const start = offset;
-      offset += token.length;
-      const boundaries = [
-        start,
-        ...ranges
-          .flatMap((range) => [range.startColumn - 1, range.endColumn - 1])
-          .filter((column) => column > start && column < offset),
-        offset,
-      ].sort((a, b) => a - b);
-      return (
-        <span key={index} className={kind ? `token-${kind}` : undefined}>
-          {boundaries.slice(0, -1).map((column, part) => {
-            const range = ranges.find(
-              (range) =>
-                column >= range.startColumn - 1 && column < range.endColumn - 1,
-            );
-            const text = line.slice(column, boundaries[part + 1]);
-            return range ? (
-              <mark
-                key={part}
-                className={`guide-symbol guide-role-${range.role} flow-color`}
-                style={flowStyleForHue(
-                  colors.get(referenceKey(range)) ??
-                    flowColor(
-                      { label: range.symbol, reference: range },
-                      palette,
-                    ),
-                )}
-                data-symbol={range.symbol}
-                data-reference={`${range.line}:${range.startColumn}:${range.endColumn}`}
-              >
-                {text}
-              </mark>
-            ) : (
-              <span
-                key={part}
-                className={dimContext ? 'guide-context' : undefined}
-              >
-                {text}
-              </span>
-            );
-          })}
-        </span>
-      );
-    });
-}
+import type { CodeEdit } from '../codeEdits';
 
 export function CodeEditor({
   code,
+  fixPreview,
   language,
   onChange,
   onBlur,
@@ -101,6 +28,12 @@ export function CodeEditor({
   disabled,
 }: {
   code: string;
+  fixPreview?: {
+    edit: CodeEdit;
+    title: string;
+    onApply: () => void;
+    onBack: () => void;
+  };
   language: Language;
   onChange: (code: string) => void;
   onBlur?: () => void;
@@ -119,7 +52,46 @@ export function CodeEditor({
   const textarea = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLPreElement>(null);
   const gutter = useRef<HTMLDivElement>(null);
+  const editor = useRef<HTMLDivElement>(null);
+  const fixActions = useRef<HTMLDivElement>(null);
+  const savedScroll = useRef<{ top: number; left: number } | undefined>(
+    undefined,
+  );
   const lines = code.split('\n');
+  const added = fixPreview?.edit.replacement
+    ? fixPreview.edit.replacement.split('\n')
+    : [];
+  const extraLines = added.length + (fixPreview ? 2 : 0);
+  const extraColumns = Math.max(
+    0,
+    Math.max(0, ...added.map((line) => line.length)) -
+      Math.max(0, ...lines.map((line) => line.length)),
+  );
+  const displayLines = lines.flatMap((text, index) => {
+    const number = index + 1;
+    const removed =
+      fixPreview &&
+      number >= fixPreview.edit.startLine &&
+      number <= fixPreview.edit.endLine;
+    const row = {
+      text,
+      number,
+      key: `source-${number}`,
+      kind: removed ? 'removed' : 'context',
+    };
+    return fixPreview && number === fixPreview.edit.endLine
+      ? [
+          row,
+          ...added.map((text, i) => ({
+            text,
+            number: fixPreview.edit.startLine + i,
+            key: `added-${i}`,
+            kind: 'added',
+          })),
+          { text: '', number: 0, key: 'fix-actions', kind: 'actions' },
+        ]
+      : [row];
+  });
   const colors = new Map(
     flowNodes.flatMap((node) =>
       node.reference
@@ -128,10 +100,12 @@ export function CodeEditor({
     ),
   );
   const isRelevantLine = (line: number) =>
-    !reviewFocus ||
-    (linkedRanges.length > 0
-      ? linkedRanges.some((range) => range.line === line)
-      : line >= reviewFocus.lineStart && line <= reviewFocus.lineEnd);
+    fixPreview
+      ? line >= fixPreview.edit.startLine && line <= fixPreview.edit.endLine
+      : !reviewFocus ||
+        (linkedRanges.length > 0
+          ? linkedRanges.some((range) => range.line === line)
+          : line >= reviewFocus.lineStart && line <= reviewFocus.lineEnd);
   const dimmedClass = (line: number) =>
     isRelevantLine(line) ? '' : 'guide-dimmed';
   const findingsDescription = useId();
@@ -180,6 +154,25 @@ export function CodeEditor({
     if (highlightRef.current) highlightRef.current.scrollTop = input.scrollTop;
     if (gutter.current) gutter.current.scrollTop = input.scrollTop;
   }, [focusedLine, reviewFocus]);
+  useLayoutEffect(() => {
+    const input = textarea.current;
+    if (!input) return;
+    if (fixPreview && !savedScroll.current) {
+      savedScroll.current = { top: input.scrollTop, left: input.scrollLeft };
+      editor.current?.focus({ preventScroll: true });
+    } else if (!fixPreview && savedScroll.current) {
+      input.scrollTop = savedScroll.current.top;
+      input.scrollLeft = savedScroll.current.left;
+      savedScroll.current = undefined;
+    }
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = input.scrollTop;
+      highlightRef.current.scrollLeft = input.scrollLeft;
+    }
+    if (gutter.current) gutter.current.scrollTop = input.scrollTop;
+    if (fixActions.current)
+      fixActions.current.style.transform = `translateY(${-input.scrollTop}px)`;
+  }, [fixPreview]);
   function syncScroll(event: UIEvent<HTMLTextAreaElement>) {
     if (highlightRef.current) {
       highlightRef.current.scrollTop = event.currentTarget.scrollTop;
@@ -187,76 +180,167 @@ export function CodeEditor({
     }
     if (gutter.current)
       gutter.current.scrollTop = event.currentTarget.scrollTop;
+    if (fixActions.current)
+      fixActions.current.style.transform = `translateY(${-event.currentTarget.scrollTop}px)`;
   }
   return (
     <div className="editor-shell">
-      <div className={`code-editor ${reviewFocus ? 'review-focused' : ''}`}>
+      <div
+        ref={editor}
+        className={`code-editor ${reviewFocus ? 'review-focused' : ''} ${fixPreview ? 'has-fix-preview' : ''}`}
+        role={fixPreview ? 'region' : undefined}
+        aria-label={fixPreview ? 'Suggested fix preview' : undefined}
+        aria-description={fixPreview?.title}
+        tabIndex={fixPreview ? -1 : undefined}
+        onKeyDown={(event) => {
+          if (!fixPreview) return;
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            fixPreview.onBack();
+          } else if (
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.altKey &&
+            ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(event.key)
+          ) {
+            const input = textarea.current;
+            if (!input) return;
+            event.preventDefault();
+            input.scrollTop +=
+              (event.key === 'ArrowUp' || event.key === 'PageUp' ? -1 : 1) *
+              (event.key.startsWith('Page') ? input.clientHeight : 25);
+            if (highlightRef.current)
+              highlightRef.current.scrollTop = input.scrollTop;
+            if (gutter.current) gutter.current.scrollTop = input.scrollTop;
+            if (fixActions.current)
+              fixActions.current.style.transform = `translateY(${-input.scrollTop}px)`;
+          }
+        }}
+      >
         <div className="line-numbers" ref={gutter}>
-          {lines.map((_, index) =>
-            lineFindings.has(index + 1) && onReviewLine ? (
+          {displayLines.map((row) =>
+            row.kind === 'actions' ? (
+              <span
+                key={row.key}
+                className="inline-fix-gutter-space"
+                aria-hidden="true"
+              />
+            ) : fixPreview ? (
+              <span
+                key={row.key}
+                aria-hidden="true"
+                className={`${row.kind === 'context' ? 'guide-dimmed' : `inline-fix-gutter-${row.kind}`}`}
+              >
+                {row.kind === 'removed'
+                  ? '−'
+                  : row.kind === 'added'
+                    ? '+'
+                    : row.number}
+              </span>
+            ) : lineFindings.has(row.number) && onReviewLine ? (
               <button
-                key={index}
+                key={row.key}
                 type="button"
-                className={`finding-line-number finding-line-${lineFindings.get(index + 1)!.severity} ${dimmedClass(index + 1)}`}
+                className={`finding-line-number finding-line-${lineFindings.get(row.number)!.severity} ${dimmedClass(row.number)}`}
                 data-review-trigger
                 disabled={disabled}
-                aria-label={`Show review for line ${index + 1}`}
+                aria-label={`Show review for line ${row.number}`}
                 aria-haspopup="dialog"
-                title={lineFindings.get(index + 1)?.titles.join(' · ')}
+                title={lineFindings.get(row.number)?.titles.join(' · ')}
                 onClick={(event) => {
                   const bounds = event.currentTarget.getBoundingClientRect();
-                  onReviewLine(index + 1, {
+                  onReviewLine(row.number, {
                     x: bounds.right,
                     y: bounds.bottom,
                   });
                 }}
               >
-                {index + 1}
+                {row.number}
               </button>
             ) : (
               <span
+                key={row.key}
                 aria-hidden="true"
-                className={`${lineFindings.has(index + 1) ? `finding-line-number finding-line-${lineFindings.get(index + 1)!.severity}` : ''} ${dimmedClass(index + 1)}`}
-                title={lineFindings.get(index + 1)?.titles.join(' · ')}
-                key={index}
+                className={`${lineFindings.has(row.number) ? `finding-line-number finding-line-${lineFindings.get(row.number)!.severity}` : ''} ${dimmedClass(row.number)}`}
+                title={lineFindings.get(row.number)?.titles.join(' · ')}
               >
-                {index + 1}
+                {row.number}
               </span>
             ),
           )}
         </div>
-        <pre ref={highlightRef} className="highlight-code" aria-hidden="true">
-          {lines.map((line, index) => (
-            <span
-              key={index}
-              className={`code-line ${lineFindings.has(index + 1) ? `finding-line finding-line-${lineFindings.get(index + 1)!.severity}` : ''} ${linkedRanges.some((range) => range.line === index + 1) ? 'guide-linked-line' : ''} ${dimmedClass(index + 1)}`}
-              data-line={index + 1}
-            >
-              {highlight(
-                line,
-                linkedRanges.filter((range) => range.line === index + 1),
-                Boolean(
-                  reviewFocus &&
-                  linkedRanges.some((range) => range.line === index + 1),
-                ),
-                colors,
-                palette,
-              )}
-              {'\n'}
-            </span>
-          ))}
+        <pre
+          ref={highlightRef}
+          className="highlight-code"
+          aria-hidden={!fixPreview}
+          role={fixPreview ? 'group' : undefined}
+          aria-label={fixPreview ? 'Proposed change' : undefined}
+        >
+          {displayLines.map((row) =>
+            row.kind === 'actions' ? (
+              <span key={row.key} className="code-line inline-fix-space">
+                {'\n\n'}
+              </span>
+            ) : (
+              <span
+                key={row.key}
+                className={`code-line ${fixPreview ? (row.kind === 'context' ? 'guide-dimmed' : `fix-diff-${row.kind}`) : `${lineFindings.has(row.number) ? `finding-line finding-line-${lineFindings.get(row.number)!.severity}` : ''} ${linkedRanges.some((range) => range.line === row.number) ? 'guide-linked-line' : ''} ${dimmedClass(row.number)}`}`}
+                data-line={row.kind === 'added' ? undefined : row.number}
+              >
+                {fixPreview && row.kind !== 'context' && (
+                  <span className="sr-only">
+                    {row.kind === 'added' ? 'Added line: ' : 'Removed line: '}
+                  </span>
+                )}
+                <CodeHighlight
+                  line={row.text}
+                  ranges={
+                    fixPreview
+                      ? []
+                      : linkedRanges.filter(
+                          (range) => range.line === row.number,
+                        )
+                  }
+                  dimContext={Boolean(
+                    !fixPreview &&
+                    reviewFocus &&
+                    linkedRanges.some((range) => range.line === row.number),
+                  )}
+                  colors={colors}
+                />
+                {'\n'}
+              </span>
+            ),
+          )}
         </pre>
-        {flowNodes.length > 0 && (
+        {!fixPreview && flowNodes.length > 0 && (
           <DataFlowOverlay nodes={flowNodes} connections={flowConnections} />
         )}
-        {sampleNodes.length > 0 && <CodeSamples nodes={sampleNodes} />}
+        {!fixPreview && sampleNodes.length > 0 && (
+          <CodeSamples nodes={sampleNodes} />
+        )}
         <textarea
           ref={textarea}
           aria-label="Code snippet"
           aria-describedby={findings.length ? findingsDescription : undefined}
           value={code}
+          readOnly={Boolean(fixPreview)}
+          tabIndex={fixPreview ? -1 : undefined}
+          style={
+            fixPreview
+              ? {
+                  paddingBottom: `calc(min(320px, 45dvh) + ${extraLines * 25}px)`,
+                  paddingRight: `calc(14px + ${extraColumns}ch)`,
+                }
+              : undefined
+          }
+          onMouseDown={(event) => {
+            if (fixPreview) event.preventDefault();
+          }}
           data-review-surface
           onClick={(event) => {
+            if (fixPreview) return;
             const input = event.currentTarget;
             const style = getComputedStyle(input);
             const line =
@@ -277,6 +361,7 @@ export function CodeEditor({
             onReviewLine?.(line, { x: event.clientX, y: event.clientY });
           }}
           onKeyDown={(event) => {
+            if (fixPreview) return;
             if (
               event.key !== 'Enter' ||
               !event.altKey ||
@@ -313,6 +398,32 @@ export function CodeEditor({
           maxLength={30_000}
           disabled={disabled}
         />
+        {fixPreview && (
+          <div
+            ref={fixActions}
+            className="inline-fix-actions"
+            data-review-trigger
+            style={{
+              top: `calc(var(--editor-padding-top) + ${(fixPreview.edit.endLine + added.length) * 25}px)`,
+            }}
+          >
+            <button className="primary-button" onClick={fixPreview.onApply}>
+              <Icon name="check" size={15} />
+              Apply fix
+            </button>
+            <button
+              className="fix-preview-back"
+              onClick={fixPreview.onBack}
+              aria-keyshortcuts="Escape"
+              title="Back to explanation (Esc)"
+            >
+              <span>Back to explanation</span>
+              <kbd aria-hidden="true">
+                <Icon name="escape" size={14} />
+              </kbd>
+            </button>
+          </div>
+        )}
         {!code && (
           <span className="editor-placeholder" aria-hidden="true">
             // Paste your code here. A function is a great place to start.
@@ -340,6 +451,9 @@ export function CodeEditor({
         <span>
           <span className="status-dot" />
           {languageLabels[language]}
+          {fixPreview && (
+            <span className="inline-fix-status"> · Previewing fix</span>
+          )}
         </span>
         <span>
           {lines.length} lines <span className="status-separator">|</span>{' '}

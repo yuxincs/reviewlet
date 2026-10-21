@@ -295,6 +295,7 @@ textarea::placeholder {
   color: var(--muted);
 }
 .code-editor {
+  --editor-padding-top: 16px;
   position: relative;
   height: 360px;
   background: var(--subtle);
@@ -1501,6 +1502,7 @@ textarea::placeholder {
   border-radius: 0;
 }
 .editor-workspace .code-editor {
+  --editor-padding-top: 24px;
   flex: 1;
   min-height: 0;
   height: auto;
@@ -1959,8 +1961,8 @@ textarea::placeholder {
 
 .review-editor-layout {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -2338,4 +2340,136 @@ textarea::placeholder {
 }
 .guide-inline-code .flow-color {
   color: var(--flow-color);
+}
+
+.guide-fix-actions {
+  flex-shrink: 0;
+  padding: 14px 22px;
+  background: var(--card);
+}
+.has-fix-preview {
+  outline: none;
+}
+.has-fix-preview .code-input {
+  caret-color: transparent;
+}
+.has-fix-preview .highlight-code,
+.has-fix-preview .line-numbers {
+  padding-bottom: min(320px, 45dvh);
+}
+.fix-diff-removed {
+  background: color-mix(in srgb, var(--high-text) 9%, var(--subtle));
+}
+.fix-diff-added {
+  overflow: hidden;
+  background: color-mix(in srgb, var(--success-text) 10%, var(--subtle));
+  animation: inline-fix-line-enter 180ms ease-out;
+}
+.line-numbers > .inline-fix-gutter-added {
+  color: var(--success-text);
+  animation: inline-fix-line-enter 180ms ease-out;
+}
+.inline-fix-gutter-removed {
+  color: var(--high-text);
+}
+.code-line.inline-fix-space,
+.line-numbers > .inline-fix-gutter-space {
+  height: 50px;
+  animation: inline-fix-actions-enter 180ms ease-out;
+}
+.inline-fix-actions {
+  position: absolute;
+  z-index: 4;
+  left: 52px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 50px;
+  animation: inline-fix-controls-enter 180ms ease-out;
+}
+.inline-fix-status {
+  color: var(--muted);
+  font-size: 11px;
+}
+.fix-preview-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--body);
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.fix-preview-back kbd {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 20px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--subtle);
+  color: var(--muted);
+  box-shadow: 0 1px 0 var(--line);
+}
+.fix-preview-back:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+.fix-applied-notice {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 22px;
+  color: var(--success-text);
+  background: var(--subtle);
+  font-size: 12px;
+}
+.fix-applied-hint {
+  color: var(--muted);
+}
+.fix-applied-notice button {
+  margin-left: auto;
+  color: var(--accent-text);
+  padding: 4px 6px;
+}
+@keyframes inline-fix-line-enter {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: 25px;
+    opacity: 1;
+  }
+}
+@keyframes inline-fix-actions-enter {
+  from {
+    height: 0;
+  }
+  to {
+    height: 50px;
+  }
+}
+@keyframes inline-fix-controls-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fix-diff-added,
+  .line-numbers > .inline-fix-gutter-added,
+  .code-line.inline-fix-space,
+  .line-numbers > .inline-fix-gutter-space,
+  .inline-fix-actions {
+    animation: none;
+  }
 }

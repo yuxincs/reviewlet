@@ -6,6 +6,7 @@ import { getFindingOverview, getReviewSteps } from './demoReviewGuide';
 import { ReviewPopover, type ReviewAnchor } from './components/ReviewPopover';
 import { ReviewGuide } from './components/ReviewGuide';
 import { CodeEditor } from './components/CodeEditor';
+import { applyCodeEdit, type CodeEdit } from './codeEdits';
 import { Icon } from './components/Icon';
 import { SnippetSidebar } from './components/SnippetSidebar';
 import { WelcomePage } from './components/WelcomePage';
@@ -35,6 +36,17 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const [guideAnchor, setGuideAnchor] = useState<ReviewAnchor>();
   const [guideStep, setGuideStep] = useState(0);
   const [explanationStep, setExplanationStep] = useState(-1);
+  const [fixPreview, setFixPreview] = useState<{
+    snippetId: string;
+    code: string;
+    edit: CodeEdit;
+    title: string;
+  }>();
+  const [undoFix, setUndoFix] = useState<{
+    snippetId: string;
+    originalCode: string;
+    appliedCode: string;
+  }>();
   const busy = loading || deletingId !== undefined || reviewing;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
   const guideSteps = activeSnippet ? getReviewSteps(activeSnippet) : [];
@@ -49,7 +61,15 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       ]),
     ),
   );
-  const showGuide = guideOpen && guideSteps.length > 0 && !reviewing;
+  const preview = fixPreview?.snippetId === activeId ? fixPreview : undefined;
+  const canUndo = Boolean(
+    undoFix &&
+    undoFix.snippetId === activeId &&
+    undoFix?.appliedCode === activeSnippet?.code &&
+    !busy,
+  );
+  const showGuide =
+    guideOpen && guideSteps.length > 0 && !reviewing && !preview;
   const activeFinding = guideSteps[guideStep];
   const activeStep = activeFinding
     ? explanationStep === -1
@@ -75,6 +95,61 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     : (guideSteps[guideStep]?.lineEnd ?? 1);
   function closeGuide() {
     setGuideOpen(false);
+    setFixPreview(undefined);
+  }
+  function previewFix() {
+    if (!activeSnippet || !activeFinding?.edit) return;
+    if (applyCodeEdit(activeSnippet.code, activeFinding.edit) === undefined) {
+      setError(
+        'This suggestion no longer matches the code. Review the snippet again.',
+      );
+      return;
+    }
+    setFixPreview({
+      snippetId: activeSnippet.id,
+      code: activeSnippet.code,
+      edit: activeFinding.edit,
+      title: activeFinding.summary,
+    });
+  }
+  function applyFix() {
+    if (!preview || !activeSnippet || busy) return;
+    const code =
+      activeSnippet.code === preview.code
+        ? applyCodeEdit(activeSnippet.code, preview.edit)
+        : undefined;
+    if (code === undefined) {
+      setError(
+        'This suggestion no longer matches the code. Review the snippet again.',
+      );
+      closeGuide();
+      return;
+    }
+    const originalCode = activeSnippet.code;
+    persist(changeSnippet({ code }));
+    setUndoFix({
+      snippetId: activeSnippet.id,
+      originalCode,
+      appliedCode: code,
+    });
+    setReviewNotice(
+      'Fix applied. Review the updated snippet to check it again.',
+    );
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLTextAreaElement>('.code-input')
+        ?.focus({ preventScroll: true }),
+    );
+  }
+  function undoAppliedFix() {
+    if (!canUndo || !undoFix) return;
+    persist(changeSnippet({ code: undoFix.originalCode }));
+    setReviewNotice('Fix undone.');
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLTextAreaElement>('.code-input')
+        ?.focus({ preventScroll: true }),
+    );
   }
   function openLineReview(line: number, anchor: ReviewAnchor) {
     const index = guideSteps.findIndex(
@@ -151,6 +226,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       (patch.code !== undefined && patch.code !== activeSnippet.code) ||
       (patch.language !== undefined &&
         patch.language !== activeSnippet.language);
+    if (codeChanged) setUndoFix(undefined);
     const updated = {
       ...activeSnippet,
       ...patch,
@@ -203,6 +279,8 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
 
   async function submitReview() {
     if (busy || reviewInFlight.current || !activeSnippet?.code.trim()) return;
+    if (preview) return;
+    setUndoFix(undefined);
     reviewInFlight.current = true;
     setReviewing(true);
     closeGuide();
@@ -347,7 +425,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
             <button
               type="button"
               className="primary-button review-snippet-button"
-              disabled={busy || !activeSnippet?.code.trim()}
+              disabled={busy || Boolean(preview) || !activeSnippet?.code.trim()}
               onClick={() => {
                 void submitReview();
               }}
@@ -396,8 +474,28 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
           ) : (
             <FlowColorContext.Provider value={flowPalette}>
               <div className="review-editor-layout">
+                {canUndo && (
+                  <div className="fix-applied-notice" role="status">
+                    <Icon name="check" size={15} />
+                    <span>Fix applied</span>
+                    <span className="fix-applied-hint">
+                      Review the updated snippet to check it again.
+                    </span>
+                    <button onClick={undoAppliedFix}>Undo</button>
+                  </div>
+                )}
                 <CodeEditor
                   code={activeSnippet.code}
+                  fixPreview={
+                    preview
+                      ? {
+                          edit: preview.edit,
+                          title: preview.title,
+                          onApply: applyFix,
+                          onBack: () => setFixPreview(undefined),
+                        }
+                      : undefined
+                  }
                   language={activeSnippet.language}
                   disabled={busy}
                   findings={activeSnippet.findings}
@@ -414,7 +512,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                   onChange={(code) => changeSnippet({ code })}
                   onBlur={() => persist(activeSnippet)}
                 />
-                {guideAnchor && guideSteps[guideStep] && (
+                {!preview && guideAnchor && guideSteps[guideStep] && (
                   <ReviewPopover
                     open={showGuide}
                     anchor={guideAnchor}
@@ -457,6 +555,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                     <ReviewGuide
                       finding={guideSteps[guideStep]}
                       activeStep={explanationStep}
+                      onPreview={activeFinding?.edit ? previewFix : undefined}
                       onStep={(index) => {
                         setExplanationStep(index);
                       }}

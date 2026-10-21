@@ -8,11 +8,13 @@ export function ReviewGuide({
   activeStep,
   onStep,
   onClose,
+  onPreview,
 }: {
   finding: GuideFinding;
   activeStep: number;
   onStep: (index: number) => void;
   onClose: () => void;
+  onPreview?: () => void;
 }) {
   const symbols = finding.steps.flatMap((step) => [
     ...(step.flow?.nodes ?? []),
@@ -132,11 +134,23 @@ export function ReviewGuide({
             </li>
           ))}
         </ol>
-        <h3 className="guide-fix-heading">Suggested change</h3>
-        <pre className="guide-fix">
-          <code>{finding.fix}</code>
-        </pre>
+        {!onPreview && (
+          <>
+            <h3 className="guide-fix-heading">Suggested change</h3>
+            <pre className="guide-fix">
+              <code>{finding.fix}</code>
+            </pre>
+          </>
+        )}
       </div>
+      {onPreview && (
+        <footer className="guide-fix-actions">
+          <button className="primary-button" onClick={onPreview}>
+            <Icon name="code" size={16} />
+            Preview fix
+          </button>
+        </footer>
+      )}
     </section>
   );
 }

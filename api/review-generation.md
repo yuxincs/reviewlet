@@ -47,3 +47,24 @@ The UI renders `sampleValue` as plain text alongside the corresponding code line
 for the selected step. Expression results without their own code reference appear
 beside the preceding referenced variable. It never executes example input. Missing
 values leave the existing review presentation intact.
+
+
+## Suggested edits
+
+A finding can optionally include an `edit` for an inline preview and application:
+
+```json
+{
+  "startLine": 7,
+  "endLine": 7,
+  "original": "  console.log('User result:', users);",
+  "replacement": ""
+}
+```
+
+Line numbers are one-based and inclusive. `original` must exactly match all lines
+being replaced, including indentation. An empty `replacement` deletes those lines.
+Include every affected line in one edit; for example, replacing a query definition
+and its use must remove the old definition as well. Omit the edit when a complete
+replacement cannot be specified. The frontend verifies the source match before
+previewing or applying and rejects results longer than 30,000 characters.

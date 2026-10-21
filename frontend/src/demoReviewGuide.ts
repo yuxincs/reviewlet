@@ -1,4 +1,5 @@
 import { examples } from './api/examples';
+import type { CodeEdit } from './codeEdits';
 import type { Review, Severity, Finding } from './types/review';
 
 export interface GuideRange {
@@ -38,6 +39,7 @@ export interface GuideFinding {
   lineEnd: number;
   steps: GuideStep[];
   fix: string;
+  edit?: CodeEdit;
 }
 
 // Merge existing-code paths without linking unrelated branches or proposed changes.
@@ -209,6 +211,32 @@ export const demoReviewFindings: GuideFinding[] = [
     fix: '// Remove the full-result debug log.\n// If needed, log only approved, non-sensitive metadata.',
   },
 ];
+
+// Explicit replacement ranges keep examples from overwriting unrelated code.
+const demoEdits = [
+  {
+    startLine: 4,
+    endLine: 6,
+    replacement:
+      '  const users = await db.query(\n    "SELECT * FROM users WHERE id = $1",\n    [userId],\n  );',
+  },
+  {
+    startLine: 9,
+    endLine: 9,
+    replacement:
+      '  if (users.length === 0) {\n    return null;\n  }\n\n  return users[0];',
+  },
+  { startLine: 7, endLine: 7, replacement: '' },
+];
+for (const [index, edit] of demoEdits.entries()) {
+  demoReviewFindings[index].edit = {
+    ...edit,
+    original: examples.database.code
+      .split('\n')
+      .slice(edit.startLine - 1, edit.endLine)
+      .join('\n'),
+  };
+}
 
 const flow = (
   kind: GuideFlow['kind'],

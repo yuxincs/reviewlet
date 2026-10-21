@@ -503,6 +503,117 @@ describe('snippet editor workspace', () => {
     expect(document.querySelector('.data-flow-overlay')).toBeNull();
   });
 
+  it('previews a fix without changing code and returns to the same explanation', async () => {
+    const api = await openWorkspace();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    );
+    const originalEditor = document.querySelector('.code-editor');
+    const originalInput = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Code snippet',
+    });
+    const originalHighlight = document.querySelector('.highlight-code');
+    const panel = screen.getByRole('dialog', { name: 'Review guide' });
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
+    fireEvent.click(within(panel).getByRole('button', { name: 'Preview fix' }));
+    const preview = screen.getByRole('region', {
+      name: 'Suggested fix preview',
+    });
+    expect(preview).toBe(originalEditor);
+    expect(document.querySelector('.highlight-code')).toBe(originalHighlight);
+    expect(screen.getByRole('textbox', { name: 'Code snippet' })).toBe(
+      originalInput,
+    );
+    expect(originalInput.readOnly).toBe(true);
+    expect(
+      preview
+        .querySelector('[data-line="3"]')
+        ?.classList.contains('guide-dimmed'),
+    ).toBe(true);
+    expect(
+      preview
+        .querySelector('[data-line="4"]')
+        ?.classList.contains('guide-dimmed'),
+    ).toBe(false);
+    expect(preview.querySelectorAll('.fix-diff-removed')).toHaveLength(3);
+    expect(preview.querySelectorAll('.fix-diff-added')).toHaveLength(4);
+    expect(preview.querySelector('.token-keyword')).toBeTruthy();
+    expect(
+      document.querySelector('.data-flow-overlay, .code-samples'),
+    ).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Review guide' })).toBeNull();
+    expect((await api.listReviews())[0].code).toBe(examples.database.code);
+    fireEvent.click(
+      within(preview).getByRole('button', { name: 'Back to explanation' }),
+    );
+    expect(originalInput.readOnly).toBe(false);
+    expect(document.querySelector('.code-editor')).toBe(originalEditor);
+    const restored = screen.getByRole('dialog', { name: 'Review guide' });
+    expect(
+      restored.querySelector('[aria-current="step"]')?.textContent,
+    ).toContain('userId flows');
+    expect(document.querySelector('.data-flow-overlay')).toBeTruthy();
+    fireEvent.click(
+      within(restored).getByRole('button', { name: 'Preview fix' }),
+    );
+    fireEvent.keyDown(
+      screen.getByRole('region', { name: 'Suggested fix preview' }),
+      { key: 'Escape' },
+    );
+    expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+        .value,
+    ).toBe(examples.database.code);
+  });
+
+  it('applies a fix, persists it, clears outdated findings, and offers code undo', async () => {
+    const api = await openWorkspace();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
+    const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Code snippet',
+    });
+    expect(editor.value).toContain('WHERE id = $1');
+    expect(editor.value).not.toContain('const query');
+    expect(
+      screen.queryByRole('button', { name: 'Show review for line 4' }),
+    ).toBeNull();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
+    const saved = (await api.listReviews())[0];
+    expect(saved.code).toBe(editor.value);
+    expect(saved.findings).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(editor.value).toBe(examples.database.code);
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    expect((await api.listReviews())[0].code).toBe(examples.database.code);
+  });
+
+  it('previews deletion as removed code and drops Undo after subsequent edits', async () => {
+    await openWorkspace();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 7' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    const preview = screen.getByRole('region', {
+      name: 'Suggested fix preview',
+    });
+    expect(preview.querySelectorAll('.fix-diff-removed')).toHaveLength(1);
+    expect(preview.querySelector('.fix-diff-added')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
+    const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Code snippet',
+    });
+    expect(editor.value).not.toContain('console.log');
+    fireEvent.change(editor, {
+      target: { value: editor.value + '\n// Another change' },
+    });
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+
   it('opens findings by clicking the code surface with scroll offsets and dismisses on unmarked lines', async () => {
     await openWorkspace();
     const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {

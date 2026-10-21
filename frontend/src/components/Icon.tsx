@@ -10,6 +10,7 @@ const paths = {
   code: 'm8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16',
   plus: 'M12 5v14M5 12h14',
   arrow: 'M5 12h14m-6-6 6 6-6 6',
+  escape: 'M9 3H3v6m0-6 8 8M13 5a8 8 0 1 1-8 8',
   chevron: 'm9 5 7 7-7 7',
   check: 'm5 12 4 4L19 6',
   close: 'm6 6 12 12M6 18 18 6',

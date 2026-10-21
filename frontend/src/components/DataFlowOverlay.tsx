@@ -39,11 +39,7 @@ export function DataFlowOverlay({ nodes }: { nodes: GuideFlowNode[] }) {
       const next = routeDataFlows(positions, bounds.width, bounds.height).map(
         (route) => ({
           path: route.path,
-          color: flowColor(
-            [...nodes].reverse().find((node) => node.reference) ??
-              nodes.at(-1)!,
-            palette,
-          ),
+          color: flowColor(nodes[route.to], palette),
         }),
       );
       setPaths((previous) =>

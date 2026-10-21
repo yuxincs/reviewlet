@@ -243,13 +243,13 @@ describe('snippet editor workspace', () => {
         name: 'Untrusted input could change the SQL statement.',
       }),
     );
-    expect(document.querySelector('mark.guide-symbol')).toBeNull();
+    expect(document.querySelector('mark[data-symbol="db.query"]')).toBeTruthy();
     expect(
       document
         .querySelector('[data-line="4"]')
         ?.classList.contains('guide-dimmed'),
     ).toBe(false);
-    expect(queryLine.classList.contains('guide-dimmed')).toBe(true);
+    expect(queryLine.classList.contains('guide-dimmed')).toBe(false);
     expect(
       screen
         .getByRole('button', { name: 'Show review for line 7' })
@@ -351,7 +351,7 @@ describe('snippet editor workspace', () => {
     expect(document.querySelector('mark[data-symbol="query"]')).toBeTruthy();
     fireEvent.keyDown(panel, { key: 'ArrowRight' });
     expect(selected()).toContain('Untrusted input');
-    expect(document.querySelector('mark.guide-symbol')).toBeNull();
+    expect(document.querySelector('mark[data-symbol="db.query"]')).toBeTruthy();
     fireEvent.keyDown(panel, { key: 'ArrowRight' });
     expect(selected()).toContain('Bind userId');
     fireEvent.keyDown(panel, { key: 'ArrowRight' });
@@ -365,6 +365,58 @@ describe('snippet editor workspace', () => {
     });
     expect(selected()).toContain('Untrusted input');
     expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
+  });
+
+  it('automatically shows variable-colored flows only in the editor', async () => {
+    await openWorkspace();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    );
+    const panel = screen.getByRole('dialog', { name: 'Review guide' });
+    expect(
+      within(panel).queryByRole('button', {
+        name: /Show data flow|Hide data flow/,
+      }),
+    ).toBeNull();
+    expect(
+      within(panel).queryByRole('group', { name: /data flow/ }),
+    ).toBeNull();
+    expect(document.querySelector('.data-flow-overlay')).toBeTruthy();
+    const hue = (symbol: string) =>
+      document
+        .querySelector<HTMLElement>(`mark[data-symbol="${symbol}"]`)
+        ?.style.getPropertyValue('--flow-hue');
+    const inputHue = hue('userId');
+    const queryHue = hue('query');
+    expect(inputHue).toBeTruthy();
+    expect(queryHue).toBeTruthy();
+    expect(queryHue).not.toBe(inputHue);
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
+    expect(hue('query')).toBe(queryHue);
+    expect(hue('db.query')).toBeTruthy();
+    expect(hue('db.query')).not.toBe(queryHue);
+    const difference = Math.abs(Number(hue('db.query')) - Number(queryHue));
+    expect(Math.min(difference, 360 - difference)).toBeGreaterThanOrEqual(
+      39.99,
+    );
+    const methodLink = within(panel).getByRole('button', {
+      name: 'Show db.query on line 6 (sink), step 2',
+    });
+    expect(methodLink.style.getPropertyValue('--flow-hue')).toBe(
+      hue('db.query'),
+    );
+    expect(document.querySelector('.data-flow-overlay')).toBeTruthy();
+    fireEvent.click(
+      within(panel).getByRole('button', {
+        name: 'Bind userId as a query parameter instead of interpolating it.',
+      }),
+    );
+    expect(hue('userId')).toBe(inputHue);
+    expect(
+      within(panel).queryByRole('group', { name: /data flow/ }),
+    ).toBeNull();
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(document.querySelector('.data-flow-overlay')).toBeNull();
   });
 
   it('opens findings by clicking the code surface with scroll offsets and dismisses on unmarked lines', async () => {

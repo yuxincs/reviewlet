@@ -1,13 +1,27 @@
 import { useLayoutEffect, useId, useRef, type UIEvent } from 'react';
 import type { Finding, Language, Severity } from '../types/review';
 import type { ReviewAnchor } from './ReviewPopover';
-import type { GuideRange } from '../demoReviewGuide';
+import {
+  flowColor,
+  useFlowPalette,
+  flowStyleForHue,
+  referenceKey,
+  type FlowColor,
+} from '../flowColors';
+import { DataFlowOverlay } from './DataFlowOverlay';
+import type { GuideRange, GuideFlowNode } from '../demoReviewGuide';
 import { languageLabels } from '../languages';
 import { Icon } from './Icon';
 
 const keywords =
   /^(import|from|export|async|await|function|const|let|return|if|else|null|undefined|def|func|string|error|type|interface)$/;
-function highlight(line: string, ranges: GuideRange[], dimContext: boolean) {
+function highlight(
+  line: string,
+  ranges: GuideRange[],
+  dimContext: boolean,
+  colors: Map<string, FlowColor>,
+  palette: ReturnType<typeof useFlowPalette>,
+) {
   let offset = 0;
   return line
     .split(/('[^']*'|"[^"]*"|`[^`]*`|\/\/.*$|#.*$|\b\w+\b)/g)
@@ -42,8 +56,16 @@ function highlight(line: string, ranges: GuideRange[], dimContext: boolean) {
             return range ? (
               <mark
                 key={part}
-                className={`guide-symbol guide-role-${range.role}`}
+                className={`guide-symbol guide-role-${range.role} flow-color`}
+                style={flowStyleForHue(
+                  colors.get(referenceKey(range)) ??
+                    flowColor(
+                      { label: range.symbol, reference: range },
+                      palette,
+                    ),
+                )}
                 data-symbol={range.symbol}
+                data-reference={`${range.line}:${range.startColumn}:${range.endColumn}`}
               >
                 {text}
               </mark>
@@ -69,6 +91,7 @@ export function CodeEditor({
   findings,
   linkedRanges = [],
   reviewFocus,
+  flowNodes = [],
   focusedLine,
   onReviewLine,
   onDismissReview,
@@ -81,15 +104,24 @@ export function CodeEditor({
   findings: Finding[];
   linkedRanges?: GuideRange[];
   reviewFocus?: { lineStart: number; lineEnd: number };
+  flowNodes?: GuideFlowNode[];
   focusedLine?: number;
   onReviewLine?: (line: number, anchor: ReviewAnchor) => void;
   onDismissReview?: () => void;
   disabled: boolean;
 }) {
+  const palette = useFlowPalette();
   const textarea = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLPreElement>(null);
   const gutter = useRef<HTMLDivElement>(null);
   const lines = code.split('\n');
+  const colors = new Map(
+    flowNodes.flatMap((node) =>
+      node.reference
+        ? [[referenceKey(node.reference), flowColor(node, palette)] as const]
+        : [],
+    ),
+  );
   const isRelevantLine = (line: number) =>
     !reviewFocus ||
     (linkedRanges.length > 0
@@ -202,11 +234,14 @@ export function CodeEditor({
                   reviewFocus &&
                   linkedRanges.some((range) => range.line === index + 1),
                 ),
+                colors,
+                palette,
               )}
               {'\n'}
             </span>
           ))}
         </pre>
+        {flowNodes.length > 0 && <DataFlowOverlay nodes={flowNodes} />}
         <textarea
           ref={textarea}
           aria-label="Code snippet"

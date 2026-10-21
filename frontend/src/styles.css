@@ -2224,3 +2224,57 @@ textarea::placeholder {
     padding: 16px 18px;
   }
 }
+
+.data-flow-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--accent-text);
+}
+.data-flow-overlay marker path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.data-flow-track,
+.data-flow-motion {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.data-flow-track {
+  opacity: 0.25;
+}
+.data-flow-motion {
+  stroke-dasharray: 4 9;
+  animation: data-flow-along 1000ms linear infinite;
+}
+@keyframes data-flow-along {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .data-flow-motion {
+    animation: none;
+  }
+}
+
+.flow-color {
+  --flow-color: hsl(var(--flow-hue) 75% 74%);
+  color: var(--flow-color);
+}
+:root[data-theme='light'] .flow-color {
+  --flow-color: hsl(var(--flow-hue) 65% 36%);
+}
+.guide-symbol.flow-color,
+.guide-reference.flow-color {
+  --guide-color: var(--flow-color);
+}
+.guide-symbol.flow-color {
+  color: var(--flow-color);
+}

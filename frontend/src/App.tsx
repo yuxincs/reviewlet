@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { reviewApi } from './api/mock';
+import { createFlowPalette, FlowColorContext } from './flowColors';
 import { examples } from './api/examples';
 import { getReviewSteps, hasDemoReviewGuide } from './demoReviewGuide';
 import { ReviewPopover, type ReviewAnchor } from './components/ReviewPopover';
@@ -38,9 +39,33 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const busy = loading || deletingId !== undefined || reviewing;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
   const guideSteps = activeSnippet ? getReviewSteps(activeSnippet) : [];
+  const flowPalette = createFlowPalette(
+    guideSteps.flatMap((finding) =>
+      finding.steps.flatMap((step) => [
+        ...(step.flow?.nodes.filter((node) => node.reference) ?? []),
+        ...(step.links?.map((reference) => ({
+          label: reference.symbol,
+          reference,
+        })) ?? []),
+      ]),
+    ),
+  );
   const showGuide = guideOpen && guideSteps.length > 0 && !reviewing;
-  const selectedLinks =
-    guideSteps[guideStep]?.steps[explanationStep]?.links ?? [];
+  const activeStep = guideSteps[guideStep]?.steps[explanationStep];
+  const activeFlow = showGuide ? activeStep?.flow : undefined;
+  const selectedLinks = [
+    ...new Map(
+      [
+        ...(activeStep?.links ?? []),
+        ...(activeFlow?.nodes.flatMap((node) =>
+          node.reference ? [node.reference] : [],
+        ) ?? []),
+      ].map((link) => [
+        `${link.line}:${link.startColumn}:${link.endColumn}`,
+        link,
+      ]),
+    ).values(),
+  ];
   const focusedPortionEnd = selectedLinks.length
     ? Math.max(...selectedLinks.map((link) => link.line))
     : (guideSteps[guideStep]?.lineEnd ?? 1);
@@ -366,60 +391,58 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
               onDemo={() => addSnippet(examples.database)}
             />
           ) : (
-            <div className="review-editor-layout">
-              <CodeEditor
-                code={activeSnippet.code}
-                language={activeSnippet.language}
-                disabled={busy}
-                findings={activeSnippet.findings}
-                linkedRanges={
-                  showGuide
-                    ? (guideSteps[guideStep].steps[explanationStep]?.links ??
-                      [])
-                    : []
-                }
-                reviewFocus={showGuide ? guideSteps[guideStep] : undefined}
-                focusedLine={
-                  showGuide ? (guideLine ?? focusedPortionEnd) : undefined
-                }
-                onReviewLine={openLineReview}
-                onDismissReview={closeGuide}
-                onChange={(code) => changeSnippet({ code })}
-                onBlur={() => persist(activeSnippet)}
-              />
-              {guideAnchor && guideSteps[guideStep] && (
-                <ReviewPopover
-                  open={showGuide}
-                  anchor={guideAnchor}
-                  focusedLine={focusedPortionEnd}
-                  onNavigate={(direction) => {
-                    setExplanationStep((current) =>
-                      Math.max(
-                        0,
-                        Math.min(
-                          current + direction,
-                          guideSteps[guideStep].steps.length - 1,
+            <FlowColorContext.Provider value={flowPalette}>
+              <div className="review-editor-layout">
+                <CodeEditor
+                  code={activeSnippet.code}
+                  language={activeSnippet.language}
+                  disabled={busy}
+                  findings={activeSnippet.findings}
+                  linkedRanges={showGuide ? selectedLinks : []}
+                  flowNodes={activeFlow?.nodes}
+                  reviewFocus={showGuide ? guideSteps[guideStep] : undefined}
+                  focusedLine={
+                    showGuide ? (guideLine ?? focusedPortionEnd) : undefined
+                  }
+                  onReviewLine={openLineReview}
+                  onDismissReview={closeGuide}
+                  onChange={(code) => changeSnippet({ code })}
+                  onBlur={() => persist(activeSnippet)}
+                />
+                {guideAnchor && guideSteps[guideStep] && (
+                  <ReviewPopover
+                    open={showGuide}
+                    anchor={guideAnchor}
+                    focusedLine={focusedPortionEnd}
+                    onNavigate={(direction) => {
+                      setExplanationStep((current) =>
+                        Math.max(
+                          0,
+                          Math.min(
+                            current + direction,
+                            guideSteps[guideStep].steps.length - 1,
+                          ),
                         ),
-                      ),
-                    );
-                    setGuideLine(undefined);
-                  }}
-                  onClose={closeGuide}
-                >
-                  <ReviewGuide
-                    finding={guideSteps[guideStep]}
-                    activeStep={explanationStep}
-                    onStep={(index) => {
-                      setExplanationStep(index);
+                      );
                       setGuideLine(undefined);
                     }}
-                    isDemo={hasDemoReviewGuide(activeSnippet)}
-                    onLine={setGuideLine}
                     onClose={closeGuide}
-                  />
-                </ReviewPopover>
-              )}
-            </div>
+                  >
+                    <ReviewGuide
+                      finding={guideSteps[guideStep]}
+                      activeStep={explanationStep}
+                      onStep={(index) => {
+                        setExplanationStep(index);
+                        setGuideLine(undefined);
+                      }}
+                      isDemo={hasDemoReviewGuide(activeSnippet)}
+                      onLine={setGuideLine}
+                      onClose={closeGuide}
+                    />
+                  </ReviewPopover>
+                )}
+              </div>
+            </FlowColorContext.Provider>
           )}
         </main>
       </div>

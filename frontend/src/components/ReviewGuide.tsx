@@ -1,3 +1,4 @@
+import { flowStyle, referenceKey, useFlowPalette } from '../flowColors';
 import { useLayoutEffect, useRef } from 'react';
 import type { GuideFinding } from '../demoReviewGuide';
 import { Icon } from './Icon';
@@ -17,6 +18,7 @@ export function ReviewGuide({
   onLine: (line: number) => void;
   onClose: () => void;
 }) {
+  const palette = useFlowPalette();
   const content = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const container = content.current;
@@ -82,7 +84,16 @@ export function ReviewGuide({
                   {step.links.map((range) => (
                     <button
                       key={`${range.line}-${range.startColumn}`}
-                      className={`guide-reference guide-role-${range.role}`}
+                      className={`guide-reference guide-role-${range.role} flow-color`}
+                      style={flowStyle(
+                        step.flow?.nodes.find(
+                          (node) =>
+                            node.reference &&
+                            referenceKey(node.reference) ===
+                              referenceKey(range),
+                        ) ?? { label: range.symbol, reference: range },
+                        palette,
+                      )}
                       onClick={() => {
                         onStep(index);
                         onLine(range.line);

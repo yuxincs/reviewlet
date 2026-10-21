@@ -10,6 +10,8 @@ frontend-check:
 	cd frontend && npm run lint
 	@echo "==> Frontend: formatting"
 	cd frontend && npm run format:check
+	@echo "==> Frontend: tests"
+	cd frontend && npm test
 	@echo "==> Frontend: type-check and build"
 	cd frontend && npm run build
 

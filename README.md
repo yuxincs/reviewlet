@@ -1,6 +1,6 @@
 # Reviewlet
 
-A skeleton for a snippet review application. Business logic and API endpoints are not implemented yet.
+A snippet review application with an interactive React frontend and a mock API. The Go backend and OpenAPI contract remain skeletons.
 
 ```text
 frontend/   React + TypeScript, served with Vite
@@ -27,9 +27,18 @@ npm run lint          # Check code quality; warnings fail the check
 npm run lint:fix      # Apply available automatic lint fixes
 npm run format:check  # Check formatting without modifying files
 npm run format       # Format frontend files
+npm test             # Run frontend interaction and mock API tests
 ```
 
 Generated build output, coverage, and the npm lockfile are excluded from formatting.
+
+### Mock review workspace
+
+The frontend works without the Go server. Dark mode is the default; the header toggle switches to light mode and remembers your preference. The main workspace contains a full-height code editor with an editable snippet name in its title bar. The collapsible sidebar lists your saved snippets and keeps the Reviewlet logo visible.
+
+Create a snippet with **New snippet**, rename it in the title bar, and edit its code. Edits save locally when you leave a field or switch snippets. Up to 20 snippets are stored in this browser; clear the site's browser data to reset the demo. Storage-disabled sessions continue in memory. Authentication and server-side ownership are not implemented yet.
+
+Review findings and discussion controls are hidden for now. The asynchronous mock API remains in `src/api/mock.ts`; it can later be replaced with HTTP calls. No code is sent to a server or AI service. Syntax highlighting currently uses a lightweight regex tokenizer, not a language parser.
 
 ## Backend
 
@@ -67,7 +76,7 @@ After installing frontend dependencies with `cd frontend && npm ci`, run from th
 make check
 ```
 
-This always runs frontend linting, formatting checks, type-checking, and a production build, plus golangci-lint, formatting checks, and `go test` for the backend. No test suites are defined yet.
+This always runs frontend linting, formatting checks, tests, type-checking, and a production build, plus golangci-lint, formatting checks, and `go test` for the backend. Backend tests are not defined yet.
 Use `make frontend-check` or `make backend-check` to run either component separately.
 
 Enable the pre-push hook once per checkout:

@@ -1,9 +1,40 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reviewlet</title>
+    <meta
+      name="description"
+      content="A fresh perspective on your code. Review snippets, explore findings, and talk through improvements in Reviewlet."
+    />
+    <meta name="theme-color" content="#031426" />
+    <style>
+      html {
+        background: #031426;
+        color-scheme: dark;
+      }
+      html[data-theme='light'] {
+        background: #f4f6f8;
+        color-scheme: light;
+      }
+    </style>
+    <script>
+      // Apply a saved preference before the app loads to avoid a theme flash.
+      (() => {
+        let theme = 'dark';
+        try {
+          if (localStorage.getItem('reviewlet.theme') === 'light')
+            theme = 'light';
+        } catch {
+          /* Default to dark when storage is unavailable. */
+        }
+        document.documentElement.dataset.theme = theme;
+        document
+          .querySelector('meta[name="theme-color"]')
+          .setAttribute('content', theme === 'dark' ? '#031426' : '#f4f6f8');
+      })();
+    </script>
+    <title>Reviewlet — A second look at your code</title>
   </head>
   <body>
     <div id="root"></div>

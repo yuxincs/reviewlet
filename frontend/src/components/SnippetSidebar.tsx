@@ -1,0 +1,114 @@
+import { languageLabels } from '../languages';
+import type { Review } from '../types/review';
+import { Icon } from './Icon';
+
+export function SnippetSidebar({
+  reviews,
+  activeId,
+  collapsed,
+  busy,
+  loading,
+  onSelect,
+  onNew,
+  onCollapse,
+  onToggle,
+}: {
+  reviews: Review[];
+  activeId?: string;
+  collapsed: boolean;
+  busy: boolean;
+  loading: boolean;
+  onSelect: (review: Review) => void;
+  onNew: () => void;
+  onCollapse: () => void;
+  onToggle: () => void;
+}) {
+  return (
+    <aside
+      id="snippet-sidebar"
+      className="snippet-sidebar"
+      aria-label="Snippet library"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onCollapse();
+      }}
+    >
+      <div className="sidebar-brand-row">
+        <a className="brand" href="#workspace" aria-label="Reviewlet">
+          <span className="brand-mark">
+            <Icon name="code" size={23} />
+          </span>
+          <span className="sidebar-text brand-word">
+            reviewlet<span>.</span>
+          </span>
+        </a>
+        <button
+          className="sidebar-toggle"
+          onClick={onToggle}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          aria-controls="snippet-sidebar"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <Icon
+            name="chevron"
+            size={16}
+            className={collapsed ? undefined : 'collapse-chevron'}
+          />
+        </button>
+      </div>
+      <div className="sidebar-content">
+        <button
+          className="sidebar-new"
+          onClick={onNew}
+          disabled={busy}
+          aria-label="New snippet"
+          title={collapsed ? 'New snippet' : undefined}
+        >
+          <Icon name="plus" size={17} />
+          <span className="sidebar-text">New snippet</span>
+        </button>
+        <div className="snippet-list-heading">
+          <h2 className="sidebar-text">Your snippets</h2>
+          <span className="sidebar-text">{reviews.length}</span>
+        </div>
+        <nav aria-label="Your snippets" className="snippet-library">
+          <ul>
+            {reviews.map((review) => (
+              <li key={review.id}>
+                <button
+                  onClick={() => onSelect(review)}
+                  disabled={busy}
+                  aria-label={review.title}
+                  aria-current={activeId === review.id ? 'page' : undefined}
+                  title={collapsed ? review.title : undefined}
+                  className={`snippet-item ${activeId === review.id ? 'selected' : ''}`}
+                >
+                  <Icon name="file" size={17} />
+                  <span className="sidebar-text snippet-item-text">
+                    <span>{review.title}</span>
+                    <small>{languageLabels[review.language]}</small>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {loading && (
+            <p className="sidebar-text sidebar-empty">Loading snippets…</p>
+          )}
+          {!loading && reviews.length === 0 && (
+            <p className="sidebar-text sidebar-empty">
+              Your saved snippets will appear here.
+            </p>
+          )}
+        </nav>
+      </div>
+      <div
+        className="sidebar-footer"
+        title="Personal snippets saved in this browser"
+      >
+        <Icon name="shield" size={15} />
+        <span className="sidebar-text">Personal snippets · This browser</span>
+      </div>
+    </aside>
+  );
+}

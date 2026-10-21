@@ -1,0 +1,145 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import App from './App';
+import { createMockReviewApi } from './api/mock';
+
+beforeEach(() => localStorage.clear());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+async function openWorkspace() {
+  const api = createMockReviewApi(localStorage, 0);
+  render(<App api={api} />);
+  await screen.findByRole('button', { name: 'Fetch a user by ID' });
+  return api;
+}
+
+describe('snippet editor workspace', () => {
+  it('shows just the editor with an editable title and persists edits', async () => {
+    await openWorkspace();
+    const main = screen.getByRole('main', { name: 'Code editor' });
+    expect(within(main).getAllByRole('textbox')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /Review snippet/ })).toBeNull();
+    expect(screen.queryByRole('article')).toBeNull();
+    const title = screen.getByRole('textbox', { name: 'Snippet name' });
+    fireEvent.change(title, { target: { value: 'User lookup' } });
+    expect(screen.getByRole('button', { name: 'User lookup' })).toBeTruthy();
+    fireEvent.blur(title);
+    const editor = screen.getByRole('textbox', { name: 'Code snippet' });
+    fireEvent.change(editor, { target: { value: 'const user = null;' } });
+    fireEvent.blur(editor);
+    const reloaded = await createMockReviewApi(localStorage, 0).listReviews();
+    expect(reloaded[0].title).toBe('User lookup');
+    expect(reloaded[0].code).toBe('const user = null;');
+    expect(reloaded[0].findings).toEqual([]);
+  });
+
+  it('creates an empty snippet and preserves changes when switching snippets', async () => {
+    await openWorkspace();
+    fireEvent.click(screen.getByRole('button', { name: 'New snippet' }));
+    const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Code snippet',
+    });
+    expect(editor.value).toBe('');
+    const title = screen.getByRole('textbox', { name: 'Snippet name' });
+    fireEvent.change(title, { target: { value: 'Calculator helper' } });
+    fireEvent.change(editor, { target: { value: 'const result = 1 + 2;' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch a user by ID' }));
+    expect(
+      screen.getByRole<HTMLInputElement>('textbox', { name: 'Snippet name' })
+        .value,
+    ).toBe('Fetch a user by ID');
+    fireEvent.click(screen.getByRole('button', { name: 'Calculator helper' }));
+    expect(editor.value).toBe('const result = 1 + 2;');
+    const reloaded = await createMockReviewApi(localStorage, 0).listReviews();
+    expect(
+      reloaded.find((snippet) => snippet.title === 'Calculator helper')?.code,
+    ).toBe('const result = 1 + 2;');
+  });
+
+  it('normalizes empty names', async () => {
+    await openWorkspace();
+    const title = screen.getByRole('textbox', { name: 'Snippet name' });
+    fireEvent.change(title, { target: { value: '   ' } });
+    fireEvent.blur(title);
+    expect(
+      screen.getByRole('button', { name: 'Untitled snippet' }),
+    ).toBeTruthy();
+    const reloaded = await createMockReviewApi(localStorage, 0).listReviews();
+    expect(reloaded[0].title).toBe('Untitled snippet');
+  });
+
+  it('keeps the sidebar usable when collapsed and remembers the preference', async () => {
+    await openWorkspace();
+    const sidebar = screen.getByRole('complementary', {
+      name: 'Snippet library',
+    });
+    expect(
+      within(sidebar).getByRole('link', { name: 'Reviewlet' }),
+    ).toBeTruthy();
+    fireEvent.click(
+      within(sidebar).getByRole('button', { name: 'Collapse sidebar' }),
+    );
+    expect(localStorage.getItem('reviewlet.sidebar-collapsed')).toBe('true');
+    fireEvent.click(
+      within(sidebar).getByRole('button', { name: 'New snippet' }),
+    );
+    fireEvent.click(
+      within(sidebar).getByRole('button', { name: 'Fetch a user by ID' }),
+    );
+    expect(
+      screen.getByRole<HTMLInputElement>('textbox', { name: 'Snippet name' })
+        .value,
+    ).toBe('Fetch a user by ID');
+    cleanup();
+    render(<App api={createMockReviewApi(localStorage, 0)} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    expect(localStorage.getItem('reviewlet.sidebar-collapsed')).toBe('false');
+  });
+
+  it('starts collapsed on small screens and closes after selection or Escape', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    await openWorkspace();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch a user by ID' }));
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    fireEvent.keyDown(
+      screen.getByRole('complementary', { name: 'Snippet library' }),
+      { key: 'Escape' },
+    );
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeTruthy();
+  });
+
+  it('reports a save failure without discarding the edit', async () => {
+    const api = createMockReviewApi(localStorage, 0);
+    render(
+      <App
+        api={{
+          ...api,
+          saveSnippet: () =>
+            Promise.reject(new Error('Could not save this snippet.')),
+        }}
+      />,
+    );
+    await screen.findByRole('button', { name: 'Fetch a user by ID' });
+    const title = screen.getByRole<HTMLInputElement>('textbox', {
+      name: 'Snippet name',
+    });
+    fireEvent.change(title, { target: { value: 'Keep this edit' } });
+    fireEvent.blur(title);
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('Could not save'),
+    );
+    expect(title.value).toBe('Keep this edit');
+  });
+});

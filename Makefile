@@ -3,6 +3,10 @@
 check: frontend-check backend-check
 
 frontend-check:
+	@echo "==> Frontend: lint"
+	cd frontend && npm run lint
+	@echo "==> Frontend: formatting"
+	cd frontend && npm run format:check
 	@echo "==> Frontend: type-check and build"
 	cd frontend && npm run build
 

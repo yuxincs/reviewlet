@@ -20,6 +20,17 @@ npm run dev
 
 Run `npm run build` to type-check and build the frontend.
 
+Frontend code uses ESLint with type-aware TypeScript rules, React Hooks, and Fast Refresh checks. Prettier handles formatting; `eslint-config-prettier` disables conflicting lint rules. TypeScript stays on the 6.0 release line supported by typescript-eslint. Run these commands from `frontend/`:
+
+```sh
+npm run lint          # Check code quality; warnings fail the check
+npm run lint:fix      # Apply available automatic lint fixes
+npm run format:check  # Check formatting without modifying files
+npm run format       # Format frontend files
+```
+
+Generated build output, coverage, and the npm lockfile are excluded from formatting.
+
 ## Backend
 
 Requires Go 1.27 or newer. In a separate terminal:
@@ -45,7 +56,7 @@ After installing frontend dependencies with `cd frontend && npm ci`, run from th
 make check
 ```
 
-This always runs the frontend type-check and production build, plus `go vet` and `go test` for the backend. No test suites are defined yet.
+This always runs frontend linting, formatting checks, type-checking, and a production build, plus `go vet` and `go test` for the backend. No test suites are defined yet.
 Use `make frontend-check` or `make backend-check` to run either component separately.
 
 Enable the pre-push hook once per checkout:

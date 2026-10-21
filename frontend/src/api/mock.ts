@@ -236,6 +236,26 @@ export function createMockReviewApi(
       save();
       return snapshot(review);
     },
+    async reviewSnippet(id, input) {
+      if (!input.code.trim())
+        throw new Error('Add a code snippet before starting your review.');
+      if (input.code.length > 30_000)
+        throw new Error('Keep your snippet under 30,000 characters.');
+      await delay(latency);
+      const existing = reviews.find((review) => review.id === id);
+      if (!existing) throw new Error('This snippet is no longer available.');
+      const review = {
+        ...create({
+          ...input,
+          title: input.title.trim() || 'Untitled snippet',
+        }),
+        id,
+        createdAt: existing.createdAt,
+      };
+      reviews = reviews.map((item) => (item.id === id ? review : item));
+      save();
+      return snapshot(review);
+    },
     async updateFinding(reviewId, findingId, status: FindingStatus) {
       await delay(latency / 4);
       const { review, finding } = find(reviewId, findingId);

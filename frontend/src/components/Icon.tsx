@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 
 const paths = {
+  spinner: 'M21 12a9 9 0 1 1-9-9',
   trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7',
   panelOpen: 'M3 4h18v16H3V4Zm5 0v16m4-8h6m-3-3 3 3-3 3',
   panelClose: 'M3 4h18v16H3V4Zm5 0v16M18 12h-6m3-3-3 3 3 3',

@@ -19,6 +19,24 @@ describe('mock review API', () => {
     }
   });
 
+  it('reviews an existing snippet in place and persists the result', async () => {
+    const api = createMockReviewApi(localStorage, 0);
+    const [snippet] = await api.listReviews();
+    const reviewed = await api.reviewSnippet(snippet.id, examples.javascript);
+    expect(reviewed.id).toBe(snippet.id);
+    expect(reviewed.createdAt).toBe(snippet.createdAt);
+    expect(reviewed.code).toBe(examples.javascript.code);
+    expect(reviewed.findings).toHaveLength(2);
+    const stored = await createMockReviewApi(localStorage, 0).listReviews();
+    expect(stored).toEqual([reviewed]);
+    await expect(
+      api.reviewSnippet(snippet.id, { ...examples.javascript, code: ' ' }),
+    ).rejects.toThrow('Add a code snippet');
+    await expect(
+      api.reviewSnippet('missing', examples.javascript),
+    ).rejects.toThrow('no longer available');
+  });
+
   it('does not fabricate findings when no demo pattern matches', async () => {
     const api = createMockReviewApi(undefined, 0);
     const review = await api.createReview({

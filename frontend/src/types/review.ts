@@ -42,6 +42,7 @@ export interface ReviewApi {
   saveSnippet(id: string, input: ReviewInput): Promise<Review>;
   deleteSnippet(id: string): Promise<void>;
   createReview(input: ReviewInput): Promise<Review>;
+  reviewSnippet(id: string, input: ReviewInput): Promise<Review>;
   updateFinding(
     reviewId: string,
     findingId: string,

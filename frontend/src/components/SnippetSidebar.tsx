@@ -5,6 +5,7 @@ import { Icon } from './Icon';
 export function SnippetSidebar({
   reviews,
   activeId,
+  reviewingId,
   collapsed,
   busy,
   loading,
@@ -16,6 +17,7 @@ export function SnippetSidebar({
 }: {
   reviews: Review[];
   activeId?: string;
+  reviewingId?: string;
   collapsed: boolean;
   busy: boolean;
   loading: boolean;
@@ -78,19 +80,40 @@ export function SnippetSidebar({
         <nav aria-label="Your snippets" className="snippet-library">
           <ul>
             {reviews.map((review) => (
-              <li key={review.id} className="snippet-row">
+              <li
+                key={review.id}
+                className={`snippet-row ${reviewingId === review.id ? 'snippet-reviewing' : ''}`}
+              >
                 <button
                   onClick={() => onSelect(review)}
                   disabled={busy}
                   aria-label={review.title}
+                  aria-busy={reviewingId === review.id}
                   aria-current={activeId === review.id ? 'page' : undefined}
                   title={collapsed ? review.title : undefined}
                   className={`snippet-item ${activeId === review.id ? 'selected' : ''}`}
                 >
-                  <Icon name="file" size={17} />
+                  {reviewingId === review.id && (
+                    <span className="review-border" aria-hidden="true">
+                      <svg width="100%" height="100%">
+                        <rect x="1" y="1" rx="5" pathLength="100" />
+                      </svg>
+                    </span>
+                  )}
+                  <Icon
+                    name={reviewingId === review.id ? 'spinner' : 'file'}
+                    size={17}
+                    className={
+                      reviewingId === review.id ? 'review-spinner' : ''
+                    }
+                  />
                   <span className="sidebar-text snippet-item-text">
                     <span>{review.title}</span>
-                    <small>{languageLabels[review.language]}</small>
+                    <small>
+                      {reviewingId === review.id
+                        ? 'Reviewing…'
+                        : languageLabels[review.language]}
+                    </small>
                   </span>
                 </button>
                 <button

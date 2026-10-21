@@ -4,7 +4,6 @@ import { examples } from './api/examples';
 import { CodeEditor } from './components/CodeEditor';
 import { Icon } from './components/Icon';
 import { SnippetSidebar } from './components/SnippetSidebar';
-import { ThemeToggle } from './components/ThemeToggle';
 import { WelcomePage } from './components/WelcomePage';
 import type { Review, ReviewApi, ReviewInput } from './types/review';
 import './styles.css';
@@ -25,7 +24,10 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<string>();
   const deletedIds = useRef(new Set<string>());
-  const busy = loading || deletingId !== undefined;
+  const reviewInFlight = useRef(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewNotice, setReviewNotice] = useState('');
+  const busy = loading || deletingId !== undefined || reviewing;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
 
   useEffect(() => {
@@ -83,6 +85,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     patch: Partial<Pick<Review, 'title' | 'code' | 'language'>>,
   ) {
     if (!activeSnippet) return undefined;
+    setReviewNotice('');
     const updated = { ...activeSnippet, ...patch };
     setSnippets((items) =>
       items.map((item) => (item.id === updated.id ? updated : item)),
@@ -90,6 +93,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     return updated;
   }
   function selectSnippet(snippet: Review) {
+    setReviewNotice('');
     persist(activeSnippet);
     closeMobileSidebar();
     setActiveId(snippet.id);
@@ -104,6 +108,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     });
   }
   function addSnippet(input: ReviewInput) {
+    setReviewNotice('');
     persist(activeSnippet);
     closeMobileSidebar();
     const snippet: Review = {
@@ -124,8 +129,41 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     persist(changeSnippet({ title }));
   }
 
+  async function submitReview() {
+    if (busy || reviewInFlight.current || !activeSnippet?.code.trim()) return;
+    reviewInFlight.current = true;
+    setReviewing(true);
+    setReviewNotice('');
+    setError('');
+    try {
+      const input = {
+        ...activeSnippet,
+        title: activeSnippet.title.trim() || 'Untitled snippet',
+      };
+      await api.saveSnippet(activeSnippet.id, input);
+      const reviewed = await api.reviewSnippet(activeSnippet.id, input);
+      setSnippets((items) =>
+        items.map((item) => (item.id === reviewed.id ? reviewed : item)),
+      );
+      const count = reviewed.findings.length;
+      setReviewNotice(
+        `Demo review complete: ${count} ${count === 1 ? 'finding' : 'findings'}.`,
+      );
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Could not review your snippet.',
+      );
+    } finally {
+      reviewInFlight.current = false;
+      setReviewing(false);
+    }
+  }
+
   async function deleteSnippet(snippet: Review) {
     if (busy) return;
+    setReviewNotice('');
     setDeletingId(snippet.id);
     deletedIds.current.add(snippet.id);
     setError('');
@@ -152,6 +190,18 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   return (
     <div
       className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
+      onKeyDown={(event) => {
+        if (
+          event.key === 'Enter' &&
+          (event.metaKey || event.ctrlKey) &&
+          !event.altKey &&
+          !event.shiftKey &&
+          !event.nativeEvent.isComposing
+        ) {
+          event.preventDefault();
+          if (!event.repeat) void submitReview();
+        }
+      }}
     >
       <a className="skip-link" href="#workspace">
         Skip to workspace
@@ -159,6 +209,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       <SnippetSidebar
         reviews={snippets}
         activeId={activeId}
+        reviewingId={reviewing ? activeId : undefined}
         collapsed={sidebarCollapsed}
         busy={busy}
         loading={loading}
@@ -202,7 +253,12 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                     }
                     onBlur={finishRename}
                     onKeyDown={(event) => {
-                      if (event.key === 'Enter') event.currentTarget.blur();
+                      if (
+                        event.key === 'Enter' &&
+                        !event.metaKey &&
+                        !event.ctrlKey
+                      )
+                        event.currentTarget.blur();
                     }}
                   />
                 </span>
@@ -212,7 +268,26 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                 {loading ? 'Loading…' : 'Your workspace'}
               </span>
             )}
-            <ThemeToggle />
+            <button
+              type="button"
+              className="primary-button review-snippet-button"
+              disabled={busy || !activeSnippet?.code.trim()}
+              onClick={() => {
+                void submitReview();
+              }}
+              aria-label={reviewing ? 'Reviewing…' : 'Review snippet'}
+              aria-busy={reviewing}
+              aria-keyshortcuts="Meta+Enter Control+Enter"
+              title="Review snippet (⌘Enter / Ctrl+Enter)"
+            >
+              <Icon
+                name={reviewing ? 'spinner' : 'sparkle'}
+                size={16}
+                className={reviewing ? 'review-spinner' : ''}
+              />
+              <span>{reviewing ? 'Reviewing…' : 'Review snippet'}</span>
+              <kbd aria-hidden="true">⌘↵</kbd>
+            </button>
           </div>
         </header>
         <main
@@ -226,6 +301,11 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
               <button onClick={() => setError('')} aria-label="Dismiss error">
                 <Icon name="close" size={16} />
               </button>
+            </div>
+          )}
+          {reviewNotice && (
+            <div className="review-notice" role="status">
+              {reviewNotice}
             </div>
           )}
           {loading ? (

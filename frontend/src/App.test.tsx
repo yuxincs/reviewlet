@@ -29,7 +29,13 @@ describe('snippet editor workspace', () => {
     await openWorkspace();
     const main = screen.getByRole('main', { name: 'Code editor' });
     expect(within(main).getAllByRole('textbox')).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: /Review snippet/ })).toBeNull();
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Review snippet' })
+        .disabled,
+    ).toBe(false);
+    expect(
+      screen.queryByRole('button', { name: /Switch to .* mode/ }),
+    ).toBeNull();
     expect(screen.queryByRole('article')).toBeNull();
     const title = screen.getByRole('textbox', { name: 'Snippet name' });
     fireEvent.change(title, { target: { value: 'User lookup' } });
@@ -65,6 +71,100 @@ describe('snippet editor workspace', () => {
     expect(
       reloaded.find((snippet) => snippet.title === 'Calculator helper')?.code,
     ).toBe('const result = 1 + 2;');
+  });
+
+  it('reviews the latest editor contents by button and Command+Enter without duplicating snippets', async () => {
+    const api = await openWorkspace();
+    const submit = vi.spyOn(api, 'reviewSnippet');
+    const editor = screen.getByRole('textbox', { name: 'Code snippet' });
+    const code = 'export function calculate(input) { return eval(input); }';
+    fireEvent.change(editor, { target: { value: code } });
+    fireEvent.keyDown(editor, { key: 'Enter', metaKey: true });
+    const reviewingButton = await screen.findByRole('button', {
+      name: 'Reviewing…',
+    });
+    expect(reviewingButton.getAttribute('aria-busy')).toBe('true');
+    const sidebarItem = screen.getByRole('button', {
+      name: examples.database.title,
+    });
+    expect(sidebarItem.getAttribute('aria-busy')).toBe('true');
+    fireEvent.keyDown(editor, { key: 'Enter', metaKey: true });
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        'Demo review complete: 1 finding.',
+      ),
+    );
+    expect(sidebarItem.getAttribute('aria-busy')).toBe('false');
+    expect(
+      screen
+        .getByRole('button', { name: 'Review snippet' })
+        .getAttribute('aria-busy'),
+    ).toBe('false');
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(submit.mock.calls[0][1].code).toBe(code);
+    const stored = await createMockReviewApi(localStorage, 0).listReviews();
+    expect(stored).toHaveLength(1);
+    expect(stored[0].findings).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Review snippet' }));
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        'Demo review complete: 1 finding.',
+      ),
+    );
+  });
+
+  it('ignores empty code, plain Enter, composing events, and repeated shortcut keys', async () => {
+    const api = await openWorkspace();
+    const submit = vi.spyOn(api, 'reviewSnippet');
+    fireEvent.click(screen.getByRole('button', { name: 'New snippet' }));
+    const editor = screen.getByRole('textbox', { name: 'Code snippet' });
+    fireEvent.change(editor, { target: { value: '   ' } });
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Review snippet' })
+        .disabled,
+    ).toBe(true);
+    fireEvent.keyDown(editor, { key: 'Enter', metaKey: true });
+    fireEvent.change(editor, { target: { value: 'const n = 1;' } });
+    fireEvent.keyDown(editor, { key: 'Enter' });
+    fireEvent.keyDown(editor, { key: 'Enter', metaKey: true, repeat: true });
+    fireEvent.keyDown(editor, {
+      key: 'Enter',
+      metaKey: true,
+      isComposing: true,
+    });
+    expect(submit).not.toHaveBeenCalled();
+    fireEvent.keyDown(editor, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        'Demo review complete: 0 findings.',
+      ),
+    );
+  });
+
+  it('preserves code and allows retry after a failed review', async () => {
+    const api = createMockReviewApi(localStorage, 0);
+    const submit = vi
+      .spyOn(api, 'reviewSnippet')
+      .mockRejectedValueOnce(new Error('Review failed. Please retry.'));
+    render(<App api={api} />);
+    await screen.findByRole('button', { name: examples.database.title });
+    fireEvent.click(screen.getByRole('button', { name: 'Review snippet' }));
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Review failed',
+    );
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+        .value,
+    ).toBe(examples.database.code);
+    fireEvent.click(screen.getByRole('button', { name: 'Review snippet' }));
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        'Demo review complete: 3 findings.',
+      ),
+    );
+    expect(submit).toHaveBeenCalledTimes(2);
   });
 
   it('normalizes empty names', async () => {

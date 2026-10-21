@@ -1,0 +1,36 @@
+name: Backend
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'frontend/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.gitignore'
+  pull_request:
+    paths-ignore:
+      - 'frontend/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.gitignore'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Backend CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+      - name: Check backend
+        run: make backend-check

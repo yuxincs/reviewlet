@@ -335,6 +335,38 @@ describe('snippet editor workspace', () => {
     ).toBeNull();
   });
 
+  it('navigates explanation steps with arrow keys without wrapping or changing editor cursor behavior', async () => {
+    await openWorkspace();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    );
+    const panel = screen.getByRole('dialog', { name: 'Review guide' });
+    const selected = () =>
+      panel.querySelector('[aria-current="step"]')?.textContent;
+    expect(selected()).toContain('userId flows');
+    fireEvent.keyDown(panel, { key: 'ArrowLeft' });
+    expect(selected()).toContain('userId flows');
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
+    expect(selected()).toContain('The interpolated query');
+    expect(document.querySelector('mark[data-symbol="query"]')).toBeTruthy();
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
+    expect(selected()).toContain('Untrusted input');
+    expect(document.querySelector('mark.guide-symbol')).toBeNull();
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
+    expect(selected()).toContain('Bind userId');
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
+    expect(selected()).toContain('Bind userId');
+    fireEvent.keyDown(panel, { key: 'ArrowLeft' });
+    expect(selected()).toContain('Untrusted input');
+    fireEvent.keyDown(panel, { key: 'ArrowRight', metaKey: true });
+    fireEvent.keyDown(panel, { key: 'ArrowRight', shiftKey: true });
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Code snippet' }), {
+      key: 'ArrowLeft',
+    });
+    expect(selected()).toContain('Untrusted input');
+    expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
+  });
+
   it('opens findings by clicking the code surface with scroll offsets and dismisses on unmarked lines', async () => {
     await openWorkspace();
     const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {

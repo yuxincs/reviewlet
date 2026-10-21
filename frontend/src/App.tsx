@@ -39,6 +39,11 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
   const guideSteps = activeSnippet ? getReviewSteps(activeSnippet) : [];
   const showGuide = guideOpen && guideSteps.length > 0 && !reviewing;
+  const selectedLinks =
+    guideSteps[guideStep]?.steps[explanationStep]?.links ?? [];
+  const focusedPortionEnd = selectedLinks.length
+    ? Math.max(...selectedLinks.map((link) => link.line))
+    : (guideSteps[guideStep]?.lineEnd ?? 1);
   function closeGuide() {
     setGuideOpen(false);
   }
@@ -374,7 +379,9 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                     : []
                 }
                 reviewFocus={showGuide ? guideSteps[guideStep] : undefined}
-                focusedLine={showGuide ? guideLine : undefined}
+                focusedLine={
+                  showGuide ? (guideLine ?? focusedPortionEnd) : undefined
+                }
                 onReviewLine={openLineReview}
                 onDismissReview={closeGuide}
                 onChange={(code) => changeSnippet({ code })}
@@ -384,6 +391,19 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                 <ReviewPopover
                   open={showGuide}
                   anchor={guideAnchor}
+                  focusedLine={focusedPortionEnd}
+                  onNavigate={(direction) => {
+                    setExplanationStep((current) =>
+                      Math.max(
+                        0,
+                        Math.min(
+                          current + direction,
+                          guideSteps[guideStep].steps.length - 1,
+                        ),
+                      ),
+                    );
+                    setGuideLine(undefined);
+                  }}
                   onClose={closeGuide}
                 >
                   <ReviewGuide
@@ -391,9 +411,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                     activeStep={explanationStep}
                     onStep={(index) => {
                       setExplanationStep(index);
-                      setGuideLine(
-                        guideSteps[guideStep].steps[index].links?.[0]?.line,
-                      );
+                      setGuideLine(undefined);
                     }}
                     isDemo={hasDemoReviewGuide(activeSnippet)}
                     onLine={setGuideLine}

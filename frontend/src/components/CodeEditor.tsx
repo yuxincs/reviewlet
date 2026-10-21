@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type UIEvent } from 'react';
+import { useLayoutEffect, useId, useRef, type UIEvent } from 'react';
 import type { Finding, Language, Severity } from '../types/review';
 import type { ReviewAnchor } from './ReviewPopover';
 import type { GuideRange } from '../demoReviewGuide';
@@ -119,14 +119,30 @@ export function CodeEditor({
       });
     }
   }
-  useEffect(() => {
-    if (focusedLine === undefined || !textarea.current) return;
-    const top = Math.max(0, (focusedLine - 3) * 25);
-    textarea.current.scrollTop = top;
-    if (highlightRef.current)
-      highlightRef.current.scrollTop = textarea.current.scrollTop;
-    if (gutter.current) gutter.current.scrollTop = textarea.current.scrollTop;
-  }, [focusedLine]);
+  useLayoutEffect(() => {
+    const input = textarea.current;
+    if (focusedLine === undefined || !input || input.clientHeight === 0) return;
+    const style = getComputedStyle(input);
+    const lineHeight = parseFloat(style.lineHeight);
+    const padding = parseFloat(style.paddingTop);
+    const top = padding + (focusedLine - 1) * lineHeight;
+    const spaceBelow = reviewFocus
+      ? Math.min(320, input.clientHeight * 0.45)
+      : padding;
+    if (top < input.scrollTop + padding) {
+      input.scrollTop = Math.max(0, top - padding);
+    } else if (
+      top + lineHeight >
+      input.scrollTop + input.clientHeight - spaceBelow
+    ) {
+      input.scrollTop = Math.max(
+        0,
+        top + lineHeight - input.clientHeight + spaceBelow,
+      );
+    }
+    if (highlightRef.current) highlightRef.current.scrollTop = input.scrollTop;
+    if (gutter.current) gutter.current.scrollTop = input.scrollTop;
+  }, [focusedLine, reviewFocus]);
   function syncScroll(event: UIEvent<HTMLTextAreaElement>) {
     if (highlightRef.current) {
       highlightRef.current.scrollTop = event.currentTarget.scrollTop;
@@ -137,7 +153,7 @@ export function CodeEditor({
   }
   return (
     <div className="editor-shell">
-      <div className="code-editor">
+      <div className={`code-editor ${reviewFocus ? 'review-focused' : ''}`}>
         <div className="line-numbers" ref={gutter}>
           {lines.map((_, index) =>
             lineFindings.has(index + 1) && onReviewLine ? (

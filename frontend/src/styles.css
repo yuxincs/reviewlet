@@ -1989,6 +1989,12 @@ textarea::placeholder {
   letter-spacing: 1.3px;
   color: var(--muted);
 }
+.guide-keyboard-hint {
+  margin-left: auto;
+  margin-right: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
 .guide-header > button {
   display: grid;
   place-items: center;
@@ -2127,6 +2133,11 @@ textarea::placeholder {
     transition: none;
   }
 }
+.review-focused .highlight-code,
+.review-focused .code-input,
+.review-focused .line-numbers {
+  padding-bottom: min(320px, 45dvh);
+}
 .guide-symbol {
   color: inherit;
   background: color-mix(in srgb, var(--guide-color) 22%, transparent);
@@ -2158,18 +2169,19 @@ textarea::placeholder {
 }
 .review-popover {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  bottom: 48px;
   z-index: 10;
   display: flex;
   flex-direction: column;
   width: min(380px, calc(100% - 32px));
+  max-height: min(600px, calc(100% - 64px));
+  transition:
+    top 180ms ease,
+    left 180ms ease;
   border: 1px solid var(--accent-line);
   border-radius: 12px;
   background: var(--card);
   box-shadow: 0 16px 50px #00000040;
-  transform-origin: top right;
+  transform-origin: top left;
 }
 .review-popover.is-open {
   animation: review-popover-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -2198,6 +2210,7 @@ textarea::placeholder {
   .review-popover.is-open,
   .review-popover.is-closing {
     animation: none;
+    transition: none;
   }
   .review-popover.is-closing {
     opacity: 0;

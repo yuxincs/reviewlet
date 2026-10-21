@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import type { GuideFinding } from '../demoReviewGuide';
 import { Icon } from './Icon';
 
@@ -16,17 +17,37 @@ export function ReviewGuide({
   onLine: (line: number) => void;
   onClose: () => void;
 }) {
+  const content = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const container = content.current;
+    const active = container?.querySelector<HTMLElement>('.guide-step-active');
+    if (!container || !active || !container.clientHeight) return;
+    const top =
+      active.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop;
+    const bottom = top + active.offsetHeight;
+    if (top < container.scrollTop) container.scrollTop = top;
+    else if (bottom > container.scrollTop + container.clientHeight)
+      container.scrollTop = bottom - container.clientHeight;
+  }, [activeStep, finding.id]);
   return (
     <section className="review-guide">
       <header className="guide-header">
         <span className="guide-eyebrow">
           {isDemo ? 'STATIC DEMO' : 'MOCK REVIEW'}
         </span>
+        <span
+          className="guide-keyboard-hint"
+          title="Use Left and Right arrow keys to navigate steps"
+        >
+          ← → steps
+        </span>
         <button onClick={onClose} aria-label="Close review guide">
           <Icon name="close" size={17} />
         </button>
       </header>
-      <div className="guide-content" key={finding.id}>
+      <div ref={content} className="guide-content" key={finding.id}>
         <h2
           className="guide-summary"
           aria-label={`${finding.severity} · ${finding.category} · ${finding.summary}`}

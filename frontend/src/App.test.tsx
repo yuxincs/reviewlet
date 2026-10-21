@@ -165,13 +165,13 @@ describe('snippet editor workspace', () => {
       ).toHaveLength(0),
     );
     expect(
-      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
-        .disabled,
-    ).toBe(true);
+      screen.getByRole('heading', { name: /Smarter reviews/ }),
+    ).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Code snippet' })).toBeNull();
     expect(await createMockReviewApi(localStorage, 0).listReviews()).toEqual(
       [],
     );
-    fireEvent.click(screen.getByRole('button', { name: 'New snippet' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create a snippet' }));
     expect(
       screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
         .disabled,
@@ -205,6 +205,28 @@ describe('snippet editor workspace', () => {
       screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
         .disabled,
     ).toBe(false);
+  });
+
+  it('welcomes an empty library after loading and creates the first snippet', async () => {
+    localStorage.setItem('reviewlet.mock-reviews.v1', '[]');
+    render(<App api={createMockReviewApi(localStorage, 20)} />);
+    expect(
+      screen.queryByRole('heading', { name: /Smarter reviews/ }),
+    ).toBeNull();
+    await screen.findByRole('heading', { name: /Smarter reviews/ });
+    expect(screen.queryByRole('textbox', { name: 'Snippet name' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Code snippet' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Create a snippet' }));
+    expect(
+      screen.queryByRole('heading', { name: /Smarter reviews/ }),
+    ).toBeNull();
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+        .value,
+    ).toBe('');
+    expect(
+      screen.getByRole('button', { name: 'Untitled snippet' }),
+    ).toBeTruthy();
   });
 
   it('reports a save failure without discarding the edit', async () => {

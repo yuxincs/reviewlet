@@ -222,7 +222,7 @@ h2 {
   letter-spacing: -0.2px;
 }
 .snippet-panel > h2 {
-  margin-bottom: 23px;
+  margin-bottom: 18px;
 }
 .snippet-fields {
   display: flex;
@@ -1544,5 +1544,317 @@ textarea::placeholder {
   }
   .sidebar-collapsed .snippet-row .snippet-item > svg {
     transform: translateX(-8px);
+  }
+}
+
+.workspace-title {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 14px;
+}
+.workspace-loading {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  padding: 24px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.welcome-page {
+  container: welcome / size;
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 0;
+  padding: clamp(16px, 3vh, 32px) clamp(20px, 3vw, 48px);
+  background: radial-gradient(
+    ellipse at 85% 12%,
+    var(--accent-soft),
+    transparent 52%
+  );
+}
+.welcome-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 3vw, 48px);
+  width: 100%;
+  max-width: 1100px;
+  min-width: 0;
+}
+.welcome-copy {
+  min-width: 0;
+}
+.welcome-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent-text);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 1.35px;
+  line-height: 1.8;
+  margin-bottom: 18px;
+}
+.welcome-eyebrow > span {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  background: currentColor;
+  border-radius: 50%;
+}
+.welcome-page h1 {
+  font-size: clamp(32px, 4.1vw, 60px);
+  font-weight: 550;
+  letter-spacing: -2.8px;
+  line-height: 1.07;
+  color: var(--ink);
+}
+.welcome-page h1 > span {
+  color: var(--accent-text);
+}
+.welcome-description {
+  max-width: 385px;
+  color: var(--body);
+  font-size: 14px;
+  line-height: 1.8;
+  margin-top: 20px;
+}
+.welcome-cta {
+  margin-top: 24px;
+  min-height: 45px;
+  padding: 12px 19px;
+  gap: 16px;
+  font-size: 13px;
+}
+.welcome-assurance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+.welcome-visual {
+  position: relative;
+  padding: 12px 0;
+  min-width: 0;
+}
+.welcome-visual:before {
+  content: '';
+  position: absolute;
+  inset: 0 -16px;
+  background-image: radial-gradient(
+    var(--accent-line) 0.7px,
+    transparent 0.7px
+  );
+  background-size: 13px 13px;
+  opacity: 0.45;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+}
+.welcome-visual-label {
+  position: relative;
+  display: block;
+  text-align: right;
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  margin-bottom: 15px;
+}
+.welcome-preview {
+  margin: 0;
+  background: var(--card);
+  border: 1px solid var(--accent-line);
+  border-radius: 9px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 20px 55px #00000014;
+  transform: rotate(-2deg);
+}
+.preview-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 15px;
+  border-bottom: 1px solid var(--line);
+  color: var(--body);
+  font-size: 11px;
+}
+.preview-titlebar > svg {
+  color: var(--accent-text);
+}
+.preview-tag {
+  margin-left: auto;
+  font-size: 7px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+.preview-code {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  color: var(--code);
+  font: 11px/27px var(--mono);
+}
+.preview-line {
+  display: block;
+  height: 27px;
+  min-width: max-content;
+}
+.preview-line-number {
+  display: inline-block;
+  user-select: none;
+  color: var(--gutter);
+  font-size: 9px;
+  width: 25px;
+}
+.preview-line-flagged {
+  background: var(--high-background);
+}
+.preview-finding {
+  border-top: 1px solid var(--line);
+  padding: 18px 16px;
+}
+.preview-finding-meta,
+.preview-finding-meta > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.preview-finding-meta {
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 9px;
+}
+.preview-finding-meta > span:first-child {
+  color: var(--high-text);
+}
+.preview-finding h2 {
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.preview-finding p {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--body);
+}
+.preview-suggestion {
+  margin-top: 15px;
+  padding: 12px;
+  border-radius: 5px;
+  background: var(--subtle);
+}
+.preview-suggestion > span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--success-text);
+}
+.preview-suggestion code {
+  display: block;
+  font: 10px/1.8 var(--mono);
+  color: var(--code);
+  overflow-wrap: anywhere;
+}
+.preview-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.preview-review-actions > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.preview-review-actions > span:first-child {
+  color: var(--accent-text);
+}
+.welcome-preview figcaption {
+  border-top: 1px solid var(--line);
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9px;
+  color: var(--muted);
+}
+.welcome-preview figcaption > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.welcome-preview figcaption svg {
+  color: var(--success-text);
+}
+.welcome-preview-note {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 16px;
+}
+.welcome-preview-note svg {
+  color: var(--accent-text);
+}
+/* Adapt to the available panel, including when the sidebar is expanded.
+   Keep the headline and action visible; omit the decorative preview when space is tight. */
+@container welcome (max-width: 720px) or (max-height: 560px) {
+  .welcome-hero {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 480px;
+  }
+  .welcome-visual {
+    display: none;
+  }
+  .welcome-page h1 {
+    font-size: clamp(32px, 8cqw, 56px);
+    letter-spacing: -1.8px;
+  }
+}
+@container welcome (max-height: 360px) {
+  .welcome-eyebrow {
+    margin-bottom: 10px;
+    font-size: 8px;
+  }
+  .welcome-page h1 {
+    font-size: 32px;
+    letter-spacing: -1.2px;
+  }
+  .welcome-description {
+    font-size: 12px;
+    line-height: 1.6;
+    margin-top: 12px;
+  }
+  .welcome-cta {
+    min-height: 38px;
+    margin-top: 16px;
+    padding: 9px 16px;
+  }
+  .welcome-assurance {
+    margin-top: 10px;
+    font-size: 9px;
+  }
+}
+@container welcome (max-height: 260px) {
+  .welcome-eyebrow,
+  .welcome-assurance {
+    display: none;
+  }
+  .welcome-page h1 {
+    font-size: 28px;
   }
 }

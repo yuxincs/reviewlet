@@ -4,6 +4,7 @@ import { CodeEditor } from './components/CodeEditor';
 import { Icon } from './components/Icon';
 import { SnippetSidebar } from './components/SnippetSidebar';
 import { ThemeToggle } from './components/ThemeToggle';
+import { WelcomePage } from './components/WelcomePage';
 import type { Review, ReviewApi } from './types/review';
 import './styles.css';
 
@@ -173,37 +174,45 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       <div className="app-main editor-main">
         <header className="app-header">
           <div className="header-inner editor-titlebar">
-            <Icon name="file" size={17} className="titlebar-file-icon" />
-            <span
-              className="snippet-name-field"
-              data-value={
-                activeSnippet?.title ||
-                (loading ? 'Loading…' : 'Untitled snippet')
-              }
-            >
-              <input
-                aria-label="Snippet name"
-                className="snippet-name-input"
-                value={activeSnippet?.title ?? ''}
-                placeholder={loading ? 'Loading…' : 'Untitled snippet'}
-                maxLength={120}
-                disabled={busy || !activeSnippet}
-                onChange={(event) =>
-                  changeSnippet({ title: event.target.value })
-                }
-                onBlur={finishRename}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') event.currentTarget.blur();
-                }}
-              />
-            </span>
+            {activeSnippet ? (
+              <>
+                <Icon name="file" size={17} className="titlebar-file-icon" />
+                <span
+                  className="snippet-name-field"
+                  data-value={
+                    activeSnippet?.title ||
+                    (loading ? 'Loading…' : 'Untitled snippet')
+                  }
+                >
+                  <input
+                    aria-label="Snippet name"
+                    className="snippet-name-input"
+                    value={activeSnippet?.title ?? ''}
+                    placeholder={loading ? 'Loading…' : 'Untitled snippet'}
+                    maxLength={120}
+                    disabled={busy || !activeSnippet}
+                    onChange={(event) =>
+                      changeSnippet({ title: event.target.value })
+                    }
+                    onBlur={finishRename}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') event.currentTarget.blur();
+                    }}
+                  />
+                </span>
+              </>
+            ) : (
+              <span className="workspace-title">
+                {loading ? 'Loading…' : 'Your workspace'}
+              </span>
+            )}
             <ThemeToggle />
           </div>
         </header>
         <main
           id="workspace"
           className="workspace editor-workspace"
-          aria-label="Code editor"
+          aria-label={activeSnippet ? 'Code editor' : 'Workspace'}
         >
           {error && (
             <div className="error-banner" role="alert">
@@ -213,14 +222,22 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
               </button>
             </div>
           )}
-          <CodeEditor
-            code={activeSnippet?.code ?? ''}
-            language={activeSnippet?.language ?? 'typescript'}
-            disabled={busy || !activeSnippet}
-            highlightedLine={null}
-            onChange={(code) => changeSnippet({ code })}
-            onBlur={() => persist(activeSnippet)}
-          />
+          {loading ? (
+            <div className="workspace-loading" role="status">
+              Loading your snippets…
+            </div>
+          ) : !activeSnippet ? (
+            <WelcomePage onCreate={newSnippet} />
+          ) : (
+            <CodeEditor
+              code={activeSnippet?.code ?? ''}
+              language={activeSnippet?.language ?? 'typescript'}
+              disabled={busy || !activeSnippet}
+              highlightedLine={null}
+              onChange={(code) => changeSnippet({ code })}
+              onBlur={() => persist(activeSnippet)}
+            />
+          )}
         </main>
       </div>
     </div>

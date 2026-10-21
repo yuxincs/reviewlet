@@ -357,9 +357,6 @@ textarea::placeholder {
 .code-input::selection {
   background: var(--selection);
 }
-.code-input:focus {
-  box-shadow: inset 0 0 0 2px var(--editor-focus);
-}
 .code-line {
   display: block;
   min-width: max-content;

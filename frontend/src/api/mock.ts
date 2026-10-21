@@ -166,7 +166,7 @@ export function createMockReviewApi(
   let reviews: Review[] = [create(examples.database)];
   try {
     const parsed: unknown = JSON.parse(storage?.getItem(STORAGE_KEY) ?? 'null');
-    if (Array.isArray(parsed) && parsed.length > 0 && parsed.every(isReview))
+    if (Array.isArray(parsed) && parsed.every(isReview))
       reviews = parsed.slice(0, MAX_REVIEWS);
   } catch {
     /* A corrupt or unavailable browser store starts a fresh demo session. */
@@ -193,6 +193,11 @@ export function createMockReviewApi(
     async listReviews() {
       await delay(latency / 4);
       return snapshot(reviews);
+    },
+    async deleteSnippet(id) {
+      reviews = reviews.filter((review) => review.id !== id);
+      save();
+      await delay(latency / 4);
     },
     async saveSnippet(id, input) {
       if (input.code.length > 30_000)

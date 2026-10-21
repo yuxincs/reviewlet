@@ -40,6 +40,7 @@ export interface Review extends ReviewInput {
 export interface ReviewApi {
   listReviews(): Promise<Review[]>;
   saveSnippet(id: string, input: ReviewInput): Promise<Review>;
+  deleteSnippet(id: string): Promise<void>;
   createReview(input: ReviewInput): Promise<Review>;
   updateFinding(
     reviewId: string,

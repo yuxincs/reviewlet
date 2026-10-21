@@ -10,6 +10,7 @@ export function SnippetSidebar({
   loading,
   onSelect,
   onNew,
+  onDelete,
   onCollapse,
   onToggle,
 }: {
@@ -20,6 +21,7 @@ export function SnippetSidebar({
   loading: boolean;
   onSelect: (review: Review) => void;
   onNew: () => void;
+  onDelete: (review: Review) => void;
   onCollapse: () => void;
   onToggle: () => void;
 }) {
@@ -76,7 +78,7 @@ export function SnippetSidebar({
         <nav aria-label="Your snippets" className="snippet-library">
           <ul>
             {reviews.map((review) => (
-              <li key={review.id}>
+              <li key={review.id} className="snippet-row">
                 <button
                   onClick={() => onSelect(review)}
                   disabled={busy}
@@ -90,6 +92,16 @@ export function SnippetSidebar({
                     <span>{review.title}</span>
                     <small>{languageLabels[review.language]}</small>
                   </span>
+                </button>
+                <button
+                  className="snippet-delete"
+                  type="button"
+                  onClick={() => onDelete(review)}
+                  disabled={busy}
+                  aria-label={`Delete ${review.title}`}
+                  title="Delete snippet"
+                >
+                  <Icon name="trash" size={15} />
                 </button>
               </li>
             ))}

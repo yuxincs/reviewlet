@@ -1482,3 +1482,67 @@ textarea::placeholder {
     font-size: 12px;
   }
 }
+
+.snippet-row {
+  position: relative;
+}
+.snippet-row .snippet-item {
+  padding-right: 44px;
+}
+.snippet-delete {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin-top: -14px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  color: var(--error-text);
+  background: transparent;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(3px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    visibility 150ms ease;
+}
+.snippet-row:hover .snippet-delete,
+.snippet-row:focus-within .snippet-delete {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+.snippet-delete:hover:not(:disabled) {
+  background: var(--error-background);
+}
+.sidebar-collapsed .snippet-row .snippet-item {
+  padding-right: 14px;
+}
+.sidebar-collapsed .snippet-delete {
+  right: 0;
+  width: 22px;
+}
+.sidebar-collapsed .snippet-row .snippet-item > svg {
+  transition: transform 150ms ease;
+}
+.sidebar-collapsed .snippet-row:hover .snippet-item > svg,
+.sidebar-collapsed .snippet-row:focus-within .snippet-item > svg {
+  transform: translateX(-8px);
+}
+@media (hover: none) {
+  .snippet-delete {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+  }
+  .sidebar-collapsed .snippet-row .snippet-item > svg {
+    transform: translateX(-8px);
+  }
+}

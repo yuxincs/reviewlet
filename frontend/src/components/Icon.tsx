@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 
 const paths = {
+  trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7',
   panelOpen: 'M3 4h18v16H3V4Zm5 0v16m4-8h6m-3-3 3 3-3 3',
   panelClose: 'M3 4h18v16H3V4Zm5 0v16M18 12h-6m3-3-3 3 3 3',
   sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-6v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',

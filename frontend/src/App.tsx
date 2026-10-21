@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { reviewApi } from './api/mock';
 import { CodeEditor } from './components/CodeEditor';
 import { Icon } from './components/Icon';
@@ -21,6 +21,9 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const [activeId, setActiveId] = useState<string>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<string>();
+  const deletedIds = useRef(new Set<string>());
+  const busy = loading || deletingId !== undefined;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
 
   useEffect(() => {
@@ -60,7 +63,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     if (window.matchMedia?.('(max-width: 700px)')?.matches) setSidebar(true);
   }
   function persist(snippet: Review | undefined) {
-    if (!snippet) return;
+    if (!snippet || deletedIds.current.has(snippet.id)) return;
     void api
       .saveSnippet(snippet.id, {
         ...snippet,
@@ -114,6 +117,31 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     persist(changeSnippet({ title }));
   }
 
+  async function deleteSnippet(snippet: Review) {
+    if (busy) return;
+    setDeletingId(snippet.id);
+    deletedIds.current.add(snippet.id);
+    setError('');
+    try {
+      await api.deleteSnippet(snippet.id);
+      const index = snippets.findIndex((item) => item.id === snippet.id);
+      const remaining = snippets.filter((item) => item.id !== snippet.id);
+      setSnippets(remaining);
+      if (activeId === snippet.id) {
+        setActiveId((remaining[index] ?? remaining[index - 1])?.id);
+      }
+    } catch (reason) {
+      deletedIds.current.delete(snippet.id);
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Could not delete this snippet.',
+      );
+    } finally {
+      setDeletingId(undefined);
+    }
+  }
+
   return (
     <div
       className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
@@ -125,10 +153,13 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
         reviews={snippets}
         activeId={activeId}
         collapsed={sidebarCollapsed}
-        busy={loading}
+        busy={busy}
         loading={loading}
         onSelect={selectSnippet}
         onNew={newSnippet}
+        onDelete={(snippet) => {
+          void deleteSnippet(snippet);
+        }}
         onCollapse={() => setSidebar(true)}
         onToggle={() => setSidebar(!sidebarCollapsed)}
       />
@@ -156,7 +187,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                 value={activeSnippet?.title ?? ''}
                 placeholder={loading ? 'Loading…' : 'Untitled snippet'}
                 maxLength={120}
-                disabled={loading || !activeSnippet}
+                disabled={busy || !activeSnippet}
                 onChange={(event) =>
                   changeSnippet({ title: event.target.value })
                 }
@@ -185,7 +216,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
           <CodeEditor
             code={activeSnippet?.code ?? ''}
             language={activeSnippet?.language ?? 'typescript'}
-            disabled={loading || !activeSnippet}
+            disabled={busy || !activeSnippet}
             highlightedLine={null}
             onChange={(code) => changeSnippet({ code })}
             onBlur={() => persist(activeSnippet)}

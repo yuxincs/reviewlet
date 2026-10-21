@@ -120,6 +120,93 @@ describe('snippet editor workspace', () => {
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeTruthy();
   });
 
+  it('deletes another snippet without changing the current selection', async () => {
+    await openWorkspace();
+    fireEvent.click(screen.getByRole('button', { name: 'New snippet' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete Fetch a user by ID' }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Fetch a user by ID' }),
+      ).toBeNull(),
+    );
+    expect(
+      screen.getByRole<HTMLInputElement>('textbox', { name: 'Snippet name' })
+        .value,
+    ).toBe('Untitled snippet');
+    const saved = await createMockReviewApi(localStorage, 0).listReviews();
+    expect(saved.map((snippet) => snippet.title)).toEqual(['Untitled snippet']);
+  });
+
+  it('selects a neighbor when deleting the active snippet and handles an empty library', async () => {
+    await openWorkspace();
+    fireEvent.click(screen.getByRole('button', { name: 'New snippet' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch a user by ID' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete Fetch a user by ID' }),
+    );
+    // Disabling or leaving the editor must not save a deleted snippet back into the library.
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Code snippet' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLInputElement>('textbox', { name: 'Snippet name' })
+          .value,
+      ).toBe('Untitled snippet'),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete Untitled snippet' }),
+    );
+    await waitFor(() =>
+      expect(
+        within(
+          screen.getByRole('navigation', { name: 'Your snippets' }),
+        ).queryAllByRole('button'),
+      ).toHaveLength(0),
+    );
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+        .disabled,
+    ).toBe(true);
+    expect(await createMockReviewApi(localStorage, 0).listReviews()).toEqual(
+      [],
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'New snippet' }));
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+        .disabled,
+    ).toBe(false);
+  });
+
+  it('keeps a snippet and reports an error if deletion fails', async () => {
+    const api = createMockReviewApi(localStorage, 0);
+    render(
+      <App
+        api={{
+          ...api,
+          deleteSnippet: () =>
+            Promise.reject(new Error('Could not delete this snippet.')),
+        }}
+      />,
+    );
+    await screen.findByRole('button', { name: 'Fetch a user by ID' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete Fetch a user by ID' }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain(
+        'Could not delete',
+      ),
+    );
+    expect(
+      screen.getByRole('button', { name: 'Fetch a user by ID' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+        .disabled,
+    ).toBe(false);
+  });
+
   it('reports a save failure without discarding the edit', async () => {
     const api = createMockReviewApi(localStorage, 0);
     render(

@@ -67,6 +67,16 @@ describe('mock review API', () => {
     ).rejects.toThrow('no longer available');
   });
 
+  it('persists deletion of the last snippet without reseeding the example', async () => {
+    const api = createMockReviewApi(localStorage, 0);
+    const [snippet] = await api.listReviews();
+    await api.deleteSnippet(snippet.id);
+    expect(await api.listReviews()).toEqual([]);
+    expect(await createMockReviewApi(localStorage, 0).listReviews()).toEqual(
+      [],
+    );
+  });
+
   it('recovers from invalid saved history', async () => {
     localStorage.setItem('reviewlet.mock-reviews.v1', '[{"id":"broken"}]');
     const reviews = await createMockReviewApi(localStorage, 0).listReviews();

@@ -1,4 +1,4 @@
-.PHONY: check frontend-check backend-check
+.PHONY: check frontend-check backend-check install-hooks
 
 check: frontend-check backend-check
 
@@ -11,3 +11,7 @@ backend-check:
 	cd backend && go vet ./...
 	@echo "==> Backend: go test"
 	cd backend && go test ./...
+
+install-hooks:
+	git config --local core.hooksPath .githooks
+	@echo "Git hooks installed: make check will run before each push."

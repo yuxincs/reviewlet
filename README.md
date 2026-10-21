@@ -48,4 +48,12 @@ make check
 This always runs the frontend type-check and production build, plus `go vet` and `go test` for the backend. No test suites are defined yet.
 Use `make frontend-check` or `make backend-check` to run either component separately.
 
+Enable the pre-push hook once per checkout:
+
+```sh
+make install-hooks
+```
+
+The hook runs `make check` before every push and blocks the push if any check fails. Frontend dependencies must be installed, and Node.js, npm, Go, and Make must be available on your PATH. Hook installation sets this checkout's `core.hooksPath` to the versioned `.githooks/` directory.
+
 GitHub Actions runs these same targets in separate frontend and backend workflows on pull requests and pushes to `main`. The backend workflow ignores changes under `frontend/`, Markdown files at any depth, and the root `LICENSE` and `.gitignore` files; the frontend workflow ignores `backend/`, Markdown files, `LICENSE`, and `.gitignore`. Each workflow runs if any changed file falls outside its ignored paths. Either workflow can also be started manually from the Actions tab.

@@ -41,9 +41,9 @@ export function ReviewGuide({
         </span>
         <span
           className="guide-keyboard-hint"
-          title="Use Left and Right arrow keys to navigate steps"
+          title="Left/Right: steps. Up/Down: findings in code order."
         >
-          ← → steps
+          ← → steps · ↑ ↓ bugs
         </span>
         <button onClick={onClose} aria-label="Close review guide">
           <Icon name="close" size={17} />

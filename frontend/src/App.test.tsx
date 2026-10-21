@@ -367,6 +367,55 @@ describe('snippet editor workspace', () => {
     expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
   });
 
+  it('navigates findings in code order with Up/Down and starts each finding at its first step', async () => {
+    await openWorkspace();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    );
+    const panel = screen.getByRole('dialog', { name: 'Review guide' });
+    const selected = () =>
+      panel.querySelector('[aria-current="step"]')?.textContent;
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
+    expect(selected()).toContain('The interpolated query');
+    fireEvent.keyDown(panel, { key: 'ArrowUp' });
+    expect(selected()).toContain('The interpolated query');
+    const stepButton = within(panel).getByRole('button', {
+      name: 'The interpolated query reaches db.query for execution.',
+    });
+    stepButton.focus();
+    fireEvent.keyDown(stepButton, { key: 'ArrowDown' });
+    expect(
+      within(panel).getByRole('heading', { name: /User data may reach logs/ }),
+    ).toBeTruthy();
+    expect(selected()).toContain('The full users result');
+    expect(document.activeElement).toBe(panel);
+    fireEvent.keyDown(panel, { key: 'ArrowDown' });
+    expect(
+      within(panel).getByRole('heading', { name: /Missing user is unchecked/ }),
+    ).toBeTruthy();
+    expect(selected()).toContain('users flows');
+    fireEvent.keyDown(panel, { key: 'ArrowDown' });
+    expect(
+      within(panel).getByRole('heading', { name: /Missing user is unchecked/ }),
+    ).toBeTruthy();
+    fireEvent.keyDown(panel, { key: 'ArrowUp' });
+    expect(
+      within(panel).getByRole('heading', { name: /User data may reach logs/ }),
+    ).toBeTruthy();
+    fireEvent.keyDown(panel, { key: 'ArrowUp', metaKey: true });
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Code snippet' }), {
+      key: 'ArrowUp',
+    });
+    expect(
+      within(panel).getByRole('heading', { name: /User data may reach logs/ }),
+    ).toBeTruthy();
+    fireEvent.keyDown(panel, { key: 'ArrowUp' });
+    expect(
+      within(panel).getByRole('heading', { name: /SQL injection risk/ }),
+    ).toBeTruthy();
+    expect(selected()).toContain('userId flows');
+  });
+
   it('automatically shows variable-colored flows only in the editor', async () => {
     await openWorkspace();
     fireEvent.click(

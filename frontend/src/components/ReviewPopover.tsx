@@ -16,6 +16,7 @@ export function ReviewPopover({
   anchor,
   focusedLine,
   onNavigate,
+  onNavigateFinding,
   onClose,
   children,
 }: {
@@ -23,6 +24,7 @@ export function ReviewPopover({
   anchor: ReviewAnchor;
   focusedLine: number;
   onNavigate?: (direction: -1 | 1) => void;
+  onNavigateFinding?: (direction: -1 | 1) => void;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -177,8 +179,9 @@ export function ReviewPopover({
       style={position}
       onKeyDown={(event) => {
         if (
-          !onNavigate ||
-          !['ArrowLeft', 'ArrowRight'].includes(event.key) ||
+          !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(
+            event.key,
+          ) ||
           event.metaKey ||
           event.ctrlKey ||
           event.altKey ||
@@ -192,9 +195,16 @@ export function ReviewPopover({
           target.closest('input, textarea, select, [contenteditable="true"]')
         )
           return;
+        const navigate =
+          event.key === 'ArrowUp' || event.key === 'ArrowDown'
+            ? onNavigateFinding
+            : onNavigate;
+        if (!navigate) return;
         event.preventDefault();
         event.stopPropagation();
-        onNavigate(event.key === 'ArrowLeft' ? -1 : 1);
+        // Keep focus in the dialog if switching findings replaces the focused step button.
+        event.currentTarget.focus({ preventScroll: true });
+        navigate(event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1);
       }}
       role="dialog"
       tabIndex={-1}

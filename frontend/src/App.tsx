@@ -414,6 +414,29 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                     open={showGuide}
                     anchor={guideAnchor}
                     focusedLine={focusedPortionEnd}
+                    onNavigateFinding={(direction) => {
+                      const ordered = guideSteps
+                        .map((finding, index) => ({ finding, index }))
+                        .sort(
+                          (a, b) =>
+                            a.finding.lineStart - b.finding.lineStart ||
+                            a.finding.lineEnd - b.finding.lineEnd,
+                        );
+                      const current = ordered.findIndex(
+                        (item) => item.index === guideStep,
+                      );
+                      const next =
+                        ordered[
+                          Math.max(
+                            0,
+                            Math.min(current + direction, ordered.length - 1),
+                          )
+                        ].index;
+                      if (next === guideStep) return;
+                      setGuideStep(next);
+                      setExplanationStep(0);
+                      setGuideLine(undefined);
+                    }}
                     onNavigate={(direction) => {
                       setExplanationStep((current) =>
                         Math.max(

@@ -44,6 +44,17 @@ The server listens on port 8080. No routes are registered, so requests return 40
 The frontend development server proxies `/api` requests to this server.
 Run `go test ./...` to check compilation; no tests are defined yet.
 
+Backend linting uses golangci-lint, pinned in the root `.golangciversion` file, with configuration in `backend/.golangci.yml`. The standard linter set includes `govet`, and formatting uses `gofmt` and `goimports`. From the repository root:
+
+```sh
+make backend-check         # Run lint, formatting checks, and tests
+make backend-lint          # Run golangci-lint
+make backend-format-check  # Report formatting differences without changing files
+make backend-format        # Apply formatting fixes
+```
+
+These targets automatically download the pinned binary to the ignored `backend/bin/` directory when it is missing or has the wrong version. The first run requires curl and network access; later runs reuse the binary. Change `.golangciversion` to upgrade the tool for both local checks and CI. This follows [NilAway's version-pinning approach](https://github.com/uber-go/nilaway/blob/main/Makefile).
+
 ## API contract
 
 `api/openapi.yaml` is intentionally empty (`paths: {}`). Define endpoints here before implementing them. Client and server code generation is not configured yet.
@@ -56,7 +67,7 @@ After installing frontend dependencies with `cd frontend && npm ci`, run from th
 make check
 ```
 
-This always runs frontend linting, formatting checks, type-checking, and a production build, plus `go vet` and `go test` for the backend. No test suites are defined yet.
+This always runs frontend linting, formatting checks, type-checking, and a production build, plus golangci-lint, formatting checks, and `go test` for the backend. No test suites are defined yet.
 Use `make frontend-check` or `make backend-check` to run either component separately.
 
 Enable the pre-push hook once per checkout:
@@ -65,6 +76,6 @@ Enable the pre-push hook once per checkout:
 make install-hooks
 ```
 
-The hook runs `make check` before every push and blocks the push if any check fails. Frontend dependencies must be installed, and Node.js, npm, Go, and Make must be available on your PATH. Hook installation sets this checkout's `core.hooksPath` to the versioned `.githooks/` directory.
+The hook runs `make check` before every push and blocks the push if any check fails. Frontend dependencies must be installed, and Node.js, npm, Go, Make, and curl must be available on your PATH. Hook installation sets this checkout's `core.hooksPath` to the versioned `.githooks/` directory.
 
 GitHub Actions runs these same targets in separate frontend and backend workflows on pull requests and pushes to `main`. The backend workflow ignores changes under `frontend/`, Markdown files at any depth, and the root `LICENSE` and `.gitignore` files; the frontend workflow ignores `backend/`, Markdown files, `LICENSE`, and `.gitignore`. Each workflow runs if any changed file falls outside its ignored paths. Either workflow can also be started manually from the Actions tab.

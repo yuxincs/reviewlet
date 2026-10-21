@@ -2002,6 +2002,7 @@ textarea::placeholder {
   color: var(--muted);
 }
 .guide-content {
+  scroll-behavior: smooth;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -2207,6 +2208,9 @@ textarea::placeholder {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .guide-content {
+    scroll-behavior: auto;
+  }
   .review-popover.is-open,
   .review-popover.is-closing {
     animation: none;

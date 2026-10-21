@@ -22,16 +22,28 @@ export function ReviewGuide({
   const content = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const container = content.current;
-    const active = container?.querySelector<HTMLElement>('.guide-step-active');
-    if (!container || !active || !container.clientHeight) return;
-    const top =
-      active.getBoundingClientRect().top -
-      container.getBoundingClientRect().top +
-      container.scrollTop;
-    const bottom = top + active.offsetHeight;
-    if (top < container.scrollTop) container.scrollTop = top;
-    else if (bottom > container.scrollTop + container.clientHeight)
-      container.scrollTop = bottom - container.clientHeight;
+    if (!container) return;
+    const alignStep = () => {
+      const active = container.querySelector<HTMLElement>('.guide-step-active');
+      if (!active || !container.clientHeight) return;
+      const inset = parseFloat(getComputedStyle(container).paddingTop) || 0;
+      // Leave enough trailing space for even the last step to reach the top.
+      container.style.paddingBottom = `${Math.max(inset, container.clientHeight - active.offsetHeight - inset)}px`;
+      container.scrollTop = Math.max(
+        0,
+        active.getBoundingClientRect().top -
+          container.getBoundingClientRect().top +
+          container.scrollTop -
+          inset,
+      );
+    };
+    alignStep();
+    const observer =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(alignStep)
+        : undefined;
+    observer?.observe(container);
+    return () => observer?.disconnect();
   }, [activeStep, finding.id]);
   return (
     <section className="review-guide">

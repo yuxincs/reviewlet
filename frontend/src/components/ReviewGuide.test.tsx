@@ -9,7 +9,10 @@ import {
 import { ReviewGuide } from './ReviewGuide';
 import type { GuideFinding } from '../demoReviewGuide';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 it('summarizes a finding range and supports steps with or without symbol links', () => {
   const finding: GuideFinding = {
@@ -65,4 +68,59 @@ it('summarizes a finding range and supports steps with or without symbol links',
   );
   expect(onStep).toHaveBeenCalledWith(1);
   expect(onLine).toHaveBeenCalledWith(3);
+});
+
+it('aligns each selected step to the top, including when it was already visible', () => {
+  const finding: GuideFinding = {
+    id: 'example',
+    summary: 'Example issue',
+    severity: 'info',
+    category: 'style',
+    lineStart: 1,
+    lineEnd: 1,
+    steps: [
+      { description: 'First explanation.' },
+      { description: 'Second explanation.' },
+    ],
+    fix: '// Suggested code',
+  };
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(
+    function (this: HTMLElement) {
+      return this.classList.contains('guide-content') ? 400 : 0;
+    },
+  );
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(50);
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+    function (this: HTMLElement) {
+      if (this.classList.contains('guide-content'))
+        return new DOMRect(0, 100, 480, 400);
+      if (this.parentElement?.classList.contains('guide-explanation-steps')) {
+        const index = Array.from(this.parentElement.children).indexOf(this);
+        const scroll = this.closest('.guide-content')!.scrollTop;
+        return new DOMRect(0, 170 + index * 80 - scroll, 440, 50);
+      }
+      return new DOMRect();
+    },
+  );
+  vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+    paddingTop: '22px',
+  } as CSSStyleDeclaration);
+  const view = (index: number) => (
+    <ReviewGuide
+      finding={finding}
+      activeStep={index}
+      isDemo={false}
+      onStep={() => {}}
+      onLine={() => {}}
+      onClose={() => {}}
+    />
+  );
+  const { container, rerender } = render(view(0));
+  const scrollArea = container.querySelector<HTMLElement>('.guide-content')!;
+  expect(scrollArea.scrollTop).toBe(48);
+  rerender(view(1));
+  expect(scrollArea.scrollTop).toBe(128);
+  expect(scrollArea.style.paddingBottom).toBe('328px');
+  rerender(view(0));
+  expect(scrollArea.scrollTop).toBe(48);
 });

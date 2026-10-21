@@ -36,3 +36,14 @@ Run `go test ./...` to check compilation; no tests are defined yet.
 ## API contract
 
 `api/openapi.yaml` is intentionally empty (`paths: {}`). Define endpoints here before implementing them. Client and server code generation is not configured yet.
+
+## Checks
+
+After installing frontend dependencies with `cd frontend && npm ci`, run from the repository root:
+
+```sh
+make check
+```
+
+This always runs the frontend type-check and production build, plus `go vet` and `go test` for the backend. No test suites are defined yet.
+Use `make frontend-check` or `make backend-check` to run either component separately.

@@ -33,7 +33,13 @@ export function SnippetSidebar({
       }}
     >
       <div className="sidebar-brand-row">
-        <a className="brand" href="#workspace" aria-label="Reviewlet">
+        <a
+          className="brand"
+          href="#workspace"
+          aria-label="Reviewlet"
+          aria-hidden={collapsed || undefined}
+          tabIndex={collapsed ? -1 : undefined}
+        >
           <span className="brand-mark">
             <Icon name="code" size={23} />
           </span>
@@ -49,11 +55,7 @@ export function SnippetSidebar({
           aria-controls="snippet-sidebar"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <Icon
-            name="chevron"
-            size={16}
-            className={collapsed ? undefined : 'collapse-chevron'}
-          />
+          <Icon name={collapsed ? 'panelOpen' : 'panelClose'} size={19} />
         </button>
       </div>
       <div className="sidebar-content">

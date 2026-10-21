@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react';
 
 const paths = {
+  panelOpen: 'M3 4h18v16H3V4Zm5 0v16m4-8h6m-3-3 3 3-3 3',
+  panelClose: 'M3 4h18v16H3V4Zm5 0v16M18 12h-6m3-3-3 3 3 3',
   sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-6v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
   moon: 'M20.5 13A8.7 8.7 0 0 1 11 3.5 9 9 0 1 0 20.5 13Z',
   code: 'm8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16',

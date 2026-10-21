@@ -1030,6 +1030,9 @@ textarea::placeholder {
   color: white;
   border-radius: 7px;
   transform: rotate(-5deg);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
 }
 .brand-mark svg {
   color: inherit;
@@ -1168,20 +1171,32 @@ textarea::placeholder {
   opacity: 0;
   visibility: hidden;
 }
-.sidebar-collapsed .sidebar-brand-row {
-  height: 104px;
-  min-height: 104px;
-}
 .sidebar-collapsed .brand {
   left: calc((var(--sidebar-width) - 30px) / 2);
   gap: 0;
-}
-.collapse-chevron {
-  transform: rotate(180deg);
+  pointer-events: none;
 }
 .sidebar-collapsed .sidebar-toggle {
   left: calc((var(--sidebar-width) - 32px) / 2);
-  top: 60px;
+  top: 17px;
+  z-index: 1;
+  background: transparent;
+}
+.sidebar-collapsed .sidebar-toggle svg {
+  opacity: 0;
+  transform: scale(0.85);
+}
+.sidebar-collapsed .sidebar-brand-row:has(.sidebar-toggle:hover) .brand-mark,
+.sidebar-collapsed
+  .sidebar-brand-row:has(.sidebar-toggle:focus-visible)
+  .brand-mark {
+  opacity: 0;
+  transform: rotate(0) scale(0.85);
+}
+.sidebar-collapsed .sidebar-toggle:hover svg,
+.sidebar-collapsed .sidebar-toggle:focus-visible svg {
+  opacity: 1;
+  transform: scale(1);
 }
 .sidebar-collapsed .sidebar-content {
   padding: 20px 10px 12px;
@@ -1222,7 +1237,9 @@ textarea::placeholder {
   color: var(--muted);
 }
 .sidebar-toggle svg {
-  transition: transform 240ms ease;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
 }
 .sidebar-toggle:hover {
   background: var(--accent-soft);

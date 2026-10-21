@@ -77,6 +77,7 @@ export function ReviewGuide({
           <span className="guide-category">{finding.category}</span>
           <span className="guide-summary-text">{finding.summary}</span>
         </h2>
+        <p className="guide-description">{finding.description}</p>
         <button
           className="guide-overview-button"
           aria-pressed={activeStep === -1}

@@ -18,6 +18,8 @@ it('summarizes a finding range and supports steps with or without symbol links',
   const finding: GuideFinding = {
     id: 'repeated-work',
     summary: 'Repeated computation',
+    description:
+      'The same value is recalculated on every iteration, adding unnecessary work.',
     severity: 'warning',
     category: 'performance',
     lineStart: 2,
@@ -74,6 +76,7 @@ it('aligns each selected step to the top, including when it was already visible'
   const finding: GuideFinding = {
     id: 'example',
     summary: 'Example issue',
+    description: 'A short explanation of the issue.',
     severity: 'info',
     category: 'style',
     lineStart: 1,

@@ -2038,6 +2038,12 @@ textarea::placeholder {
   font-size: 15px;
   color: var(--ink);
 }
+.guide-description {
+  margin: 10px 0 16px;
+  color: var(--body);
+  font-size: 14px;
+  line-height: 1.7;
+}
 .guide-explanation-steps {
   list-style: none;
   padding: 0;

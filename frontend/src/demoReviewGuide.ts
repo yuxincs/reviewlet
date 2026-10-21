@@ -29,6 +29,7 @@ export type GuideCategory = 'bug' | 'style' | 'performance' | 'security';
 export interface GuideFinding {
   id: string;
   summary: string;
+  description: string;
   severity: GuideSeverity;
   category: GuideCategory;
   lineStart: number;
@@ -118,6 +119,8 @@ export const demoReviewFindings: GuideFinding[] = [
     lineStart: 4,
     lineEnd: 4,
     summary: 'SQL injection risk',
+    description:
+      'userId is interpolated directly into SQL and passed to db.query. Untrusted input could alter the statement and access unintended data; bind it as a query parameter.',
     severity: 'critical',
     category: 'security',
     steps: [
@@ -150,6 +153,8 @@ export const demoReviewFindings: GuideFinding[] = [
     lineStart: 9,
     lineEnd: 9,
     summary: 'Missing user is unchecked',
+    description:
+      'When the query returns no matches, users[0] is undefined. Callers may assume a user exists and fail later; handle the empty result explicitly.',
     severity: 'warning',
     category: 'bug',
     steps: [
@@ -178,6 +183,8 @@ export const demoReviewFindings: GuideFinding[] = [
     lineStart: 7,
     lineEnd: 7,
     summary: 'User data may reach logs',
+    description:
+      'The full query result is passed to console.log, and SELECT * may include personal or sensitive fields. Remove the log or record only approved, non-sensitive metadata.',
     severity: 'info',
     category: 'security',
     steps: [
@@ -340,6 +347,7 @@ export function getReviewSteps(review: Review): GuideFinding[] {
   return review.findings.map((finding) => ({
     id: finding.id,
     summary: finding.title,
+    description: finding.description,
     severity: severities[finding.severity],
     category: categories[finding.category],
     lineStart: finding.lineStart,

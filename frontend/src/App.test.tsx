@@ -531,7 +531,9 @@ describe('snippet editor workspace', () => {
       }),
     ).toBeTruthy();
     expect(
-      within(guide).getByText(/eval executes its input as code/),
+      within(guide).getByText(/eval executes its input as code/, {
+        selector: 'p',
+      }),
     ).toBeTruthy();
     expect(document.querySelector('mark.guide-symbol')).toBeNull();
     fireEvent.click(

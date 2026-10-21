@@ -567,7 +567,7 @@ describe('snippet editor workspace', () => {
     ).toBe(examples.database.code);
   });
 
-  it('applies a fix, persists it, clears outdated findings, and offers code undo', async () => {
+  it('applies a fix, persists shifted findings, and restores the previous review on undo', async () => {
     const api = await openWorkspace();
     fireEvent.click(
       screen.getByRole('button', { name: 'Show review for line 4' }),
@@ -582,14 +582,126 @@ describe('snippet editor workspace', () => {
     expect(
       screen.queryByRole('button', { name: 'Show review for line 4' }),
     ).toBeNull();
-    expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Undo' })).toBeTruthy();
     const saved = (await api.listReviews())[0];
     expect(saved.code).toBe(editor.value);
-    expect(saved.findings).toEqual([]);
+    expect(
+      saved.findings
+        .filter((finding) => finding.status === 'open')
+        .map((finding) => finding.lineStart)
+        .sort((a, b) => a - b),
+    ).toEqual([8, 10]);
+    expect(
+      saved.findings.filter((finding) => finding.status === 'accepted'),
+    ).toHaveLength(1);
+    expect(
+      screen.getByRole('button', { name: 'Show review for line 8' }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Show review for line 10' }),
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(editor.value).toBe(examples.database.code);
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
-    expect((await api.listReviews())[0].code).toBe(examples.database.code);
+    const restored = (await api.listReviews())[0];
+    expect(restored.code).toBe(examples.database.code);
+    expect(
+      restored.findings.every((finding) => finding.status === 'open'),
+    ).toBe(true);
+    expect(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    ).toBeTruthy();
+  });
+
+  it('continues applying retained fixes after reload without submitting another review', async () => {
+    const api = await openWorkspace();
+    const reviewAgain = vi.spyOn(api, 'reviewSnippet');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
+    await screen.findByRole('button', { name: 'Undo' });
+    cleanup();
+    const reloadedApi = createMockReviewApi(localStorage, 0);
+    const reloadedReview = vi.spyOn(reloadedApi, 'reviewSnippet');
+    render(<App api={reloadedApi} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Show review for line 8' }),
+    );
+    expect(
+      screen.getByRole('heading', { name: 'User data may reach logs' }),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Needs recheck/)).toBeNull();
+    expect(
+      document
+        .querySelector('mark[data-symbol="users"]')
+        ?.closest('[data-line]')
+        ?.getAttribute('data-line'),
+    ).toBe('4');
+    fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
+    await screen.findByRole('button', { name: 'Undo' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 9' }),
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Missing user is unchecked' }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
+    await screen.findByRole('button', { name: 'Undo' });
+    expect(
+      screen.queryByRole('button', { name: /Show review for line/ }),
+    ).toBeNull();
+    expect(screen.getByText('No remaining findings')).toBeTruthy();
+    const [stored] = await reloadedApi.listReviews();
+    expect(
+      stored.findings.every((finding) => finding.status === 'accepted'),
+    ).toBe(true);
+    expect(stored.code).toContain('if (users.length === 0)');
+    expect(reviewAgain).not.toHaveBeenCalled();
+    expect(reloadedReview).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', {
+          name: 'Show review for line 9',
+        }).disabled,
+      ).toBe(false),
+    );
+    expect(
+      (await reloadedApi.listReviews())[0].findings.filter(
+        (finding) => finding.status === 'open',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('restores code and findings if saving a review revision fails', async () => {
+    const api = createMockReviewApi(localStorage, 0);
+    render(
+      <App
+        api={{
+          ...api,
+          saveReviewRevision: () =>
+            Promise.reject(new Error('Could not save fix')),
+        }}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Show review for line 4' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+        .value,
+    ).toBe(examples.database.code);
+    expect(
+      screen.getAllByRole('button', { name: /Show review for line/ }),
+    ).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 
   it('previews deletion as removed code and drops Undo after subsequent edits', async () => {
@@ -608,6 +720,7 @@ describe('snippet editor workspace', () => {
       name: 'Code snippet',
     });
     expect(editor.value).not.toContain('console.log');
+    await screen.findByRole('button', { name: 'Undo' });
     fireEvent.change(editor, {
       target: { value: editor.value + '\n// Another change' },
     });

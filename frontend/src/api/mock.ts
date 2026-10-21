@@ -138,10 +138,86 @@ function isFinding(value: unknown): value is Finding {
       String(value.category),
     ) &&
     ['open', 'accepted', 'dismissed'].includes(String(value.status)) &&
+    (value.needsRecheck === undefined ||
+      typeof value.needsRecheck === 'boolean') &&
     typeof value.lineStart === 'number' &&
     typeof value.lineEnd === 'number' &&
     Array.isArray(value.comments) &&
     value.comments.every(isComment)
+  );
+}
+function isRange(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.symbol === 'string' &&
+    ['line', 'startColumn', 'endColumn'].every(
+      (key) => Number.isInteger(value[key]) && Number(value[key]) > 0,
+    ) &&
+    (value.symbolId === undefined || typeof value.symbolId === 'string') &&
+    ['source', 'transform', 'sink'].includes(String(value.role))
+  );
+}
+function isGuideFinding(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    !['id', 'summary', 'description', 'fix'].every(
+      (key) => typeof value[key] === 'string',
+    ) ||
+    !['critical', 'warning', 'info'].includes(String(value.severity)) ||
+    !['bug', 'style', 'performance', 'security'].includes(
+      String(value.category),
+    ) ||
+    !['lineStart', 'lineEnd'].every(
+      (key) => Number.isInteger(value[key]) && Number(value[key]) > 0,
+    ) ||
+    (value.state !== undefined &&
+      (typeof value.state !== 'string' ||
+        !['current', 'resolved', 'needs-recheck'].includes(value.state)))
+  )
+    return false;
+  if (
+    value.edit !== undefined &&
+    (!isRecord(value.edit) ||
+      typeof value.edit.original !== 'string' ||
+      typeof value.edit.replacement !== 'string' ||
+      !Number.isInteger(value.edit.startLine) ||
+      !Number.isInteger(value.edit.endLine))
+  )
+    return false;
+  return (
+    Array.isArray(value.steps) &&
+    value.steps.every((step: unknown) => {
+      if (!isRecord(step) || typeof step.description !== 'string') return false;
+      if (
+        step.links !== undefined &&
+        (!Array.isArray(step.links) || !step.links.every(isRange))
+      )
+        return false;
+      const flow = step.flow;
+      if (flow === undefined) return true;
+      return (
+        isRecord(flow) &&
+        ['current', 'proposed'].includes(String(flow.kind)) &&
+        Array.isArray(flow.nodes) &&
+        flow.nodes.every(
+          (node: unknown) =>
+            isRecord(node) &&
+            typeof node.label === 'string' &&
+            (node.reference === undefined || isRange(node.reference)) &&
+            (node.sampleValue === undefined ||
+              typeof node.sampleValue === 'string') &&
+            (node.flowKey === undefined || typeof node.flowKey === 'string'),
+        ) &&
+        (flow.connections === undefined ||
+          (Array.isArray(flow.connections) &&
+            flow.connections.every(
+              (edge: unknown) =>
+                isRecord(edge) &&
+                Number.isInteger(edge.from) &&
+                Number.isInteger(edge.to),
+            )))
+      );
+    })
   );
 }
 function isReview(value: unknown): value is Review {
@@ -154,7 +230,10 @@ function isReview(value: unknown): value is Review {
       String(value.language),
     ) &&
     Array.isArray(value.findings) &&
-    value.findings.every(isFinding)
+    value.findings.every(isFinding) &&
+    (value.guideFindings === undefined ||
+      (Array.isArray(value.guideFindings) &&
+        value.guideFindings.every(isGuideFinding)))
   );
 }
 
@@ -211,6 +290,9 @@ export function createMockReviewApi(
         createdAt: existing?.createdAt ?? new Date().toISOString(),
         summary: codeChanged ? '' : (existing?.summary ?? ''),
         findings: codeChanged ? [] : (existing?.findings ?? []),
+        ...(!codeChanged && existing?.guideFindings
+          ? { guideFindings: existing.guideFindings }
+          : {}),
         title: input.title.trim() || 'Untitled snippet',
         code: input.code,
         language: input.language,
@@ -223,6 +305,22 @@ export function createMockReviewApi(
       save();
       await delay(latency / 4);
       return snapshot(snippet);
+    },
+    async saveReviewRevision(review, expectedCode) {
+      const existing = reviews.find((item) => item.id === review.id);
+      if (!existing || existing.code !== expectedCode)
+        throw new Error(
+          'The snippet changed. Open the latest code before applying this fix.',
+        );
+      if (!isReview(review) || review.code.length > 30_000)
+        throw new Error('Could not save this review revision.');
+      const revision = snapshot({ ...review, createdAt: existing.createdAt });
+      reviews = reviews.map((item) =>
+        item.id === review.id ? revision : item,
+      );
+      save();
+      await delay(latency / 4);
+      return snapshot(revision);
     },
     async createReview(input) {
       if (!input.code.trim())

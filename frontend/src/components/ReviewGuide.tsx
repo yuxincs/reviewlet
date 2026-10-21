@@ -107,6 +107,12 @@ export function ReviewGuide({
           </span>
           <span className="guide-category">{finding.category}</span>
         </div>
+        {finding.state === 'needs-recheck' && (
+          <p className="guide-recheck-notice" role="status">
+            Needs recheck · Code used by this finding changed. Review the
+            snippet again before applying its fix.
+          </p>
+        )}
         <p className="guide-description">
           <ReviewText text={finding.description} nodes={symbols} />
         </p>
@@ -134,7 +140,7 @@ export function ReviewGuide({
             </li>
           ))}
         </ol>
-        {!onPreview && (
+        {!onPreview && finding.state !== 'needs-recheck' && (
           <>
             <h3 className="guide-fix-heading">Suggested change</h3>
             <pre className="guide-fix">

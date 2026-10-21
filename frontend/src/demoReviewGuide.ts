@@ -1,46 +1,24 @@
 import { examples } from './api/examples';
-import type { CodeEdit } from './codeEdits';
 import type { Review, Severity, Finding } from './types/review';
 
-export interface GuideRange {
-  symbolId?: string;
-  line: number;
-  startColumn: number;
-  endColumn: number;
-  symbol: string;
-  role: 'source' | 'transform' | 'sink';
-}
-export interface GuideFlowNode {
-  label: string;
-  flowKey?: string;
-  // Illustrative value at this point in this step; never evaluated as code.
-  sampleValue?: string;
-  reference?: GuideRange;
-}
-export interface GuideFlow {
-  kind: 'current' | 'proposed';
-  connections?: { from: number; to: number }[];
-  nodes: GuideFlowNode[];
-}
-export interface GuideStep {
-  description: string;
-  links?: GuideRange[];
-  flow?: GuideFlow;
-}
-export type GuideSeverity = 'critical' | 'warning' | 'info';
-export type GuideCategory = 'bug' | 'style' | 'performance' | 'security';
-export interface GuideFinding {
-  id: string;
-  summary: string;
-  description: string;
-  severity: GuideSeverity;
-  category: GuideCategory;
-  lineStart: number;
-  lineEnd: number;
-  steps: GuideStep[];
-  fix: string;
-  edit?: CodeEdit;
-}
+export type {
+  GuideRange,
+  GuideFlowNode,
+  GuideFlow,
+  GuideStep,
+  GuideSeverity,
+  GuideCategory,
+  GuideFinding,
+} from './types/guide';
+import type {
+  GuideRange,
+  GuideFlowNode,
+  GuideFlow,
+  GuideStep,
+  GuideSeverity,
+  GuideCategory,
+  GuideFinding,
+} from './types/guide';
 
 // Merge existing-code paths without linking unrelated branches or proposed changes.
 export function getFindingOverview(finding: GuideFinding): GuideStep {
@@ -389,21 +367,39 @@ const categories: Record<Finding['category'], GuideCategory> = {
 };
 
 export function getReviewSteps(review: Review): GuideFinding[] {
-  if (hasDemoReviewGuide(review)) return demoReviewFindings;
-  return review.findings.map((finding) => ({
-    id: finding.id,
-    summary: finding.title,
-    description: finding.description,
-    severity: severities[finding.severity],
-    category: categories[finding.category],
-    lineStart: finding.lineStart,
-    lineEnd: finding.lineEnd,
-    steps: [finding.description, finding.suggestion].flatMap((text) =>
-      text
-        .split(/(?<=[.!?])\s+(?=[A-Z])/u)
-        .filter(Boolean)
-        .map((description) => ({ description })),
-    ),
-    fix: finding.suggestedCode,
-  }));
+  const openIds = new Set(
+    review.findings
+      .filter((finding) => finding.status === 'open')
+      .map((finding) => finding.id),
+  );
+  if (review.guideFindings)
+    return review.guideFindings.filter(
+      (finding) => finding.state !== 'resolved' && openIds.has(finding.id),
+    );
+  if (hasDemoReviewGuide(review))
+    return demoReviewFindings.flatMap((guide) => {
+      const finding = review.findings.find(
+        (finding) => finding.lineStart === guide.lineStart,
+      );
+      return finding?.status === 'open' ? [{ ...guide, id: finding.id }] : [];
+    });
+  return review.findings
+    .filter((finding) => finding.status === 'open')
+    .map((finding) => ({
+      id: finding.id,
+      summary: finding.title,
+      description: finding.description,
+      severity: severities[finding.severity],
+      category: categories[finding.category],
+      lineStart: finding.lineStart,
+      lineEnd: finding.lineEnd,
+      steps: [finding.description, finding.suggestion].flatMap((text) =>
+        text
+          .split(/(?<=[.!?])\s+(?=[A-Z])/u)
+          .filter(Boolean)
+          .map((description) => ({ description })),
+      ),
+      fix: finding.suggestedCode,
+      state: finding.needsRecheck ? 'needs-recheck' : 'current',
+    }));
 }

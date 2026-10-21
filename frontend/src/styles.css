@@ -2473,3 +2473,13 @@ textarea::placeholder {
     animation: none;
   }
 }
+
+.guide-recheck-notice {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--warning-background);
+  color: var(--warning-text);
+  font-size: 12px;
+  line-height: 1.6;
+}

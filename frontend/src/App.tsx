@@ -7,6 +7,7 @@ import { ReviewPopover, type ReviewAnchor } from './components/ReviewPopover';
 import { ReviewGuide } from './components/ReviewGuide';
 import { CodeEditor } from './components/CodeEditor';
 import { applyCodeEdit, type CodeEdit } from './codeEdits';
+import { applyReviewFix } from './reviewRemapping';
 import { Icon } from './components/Icon';
 import { SnippetSidebar } from './components/SnippetSidebar';
 import { WelcomePage } from './components/WelcomePage';
@@ -31,6 +32,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const deletedIds = useRef(new Set<string>());
   const reviewInFlight = useRef(false);
   const [reviewing, setReviewing] = useState(false);
+  const [savingFix, setSavingFix] = useState(false);
   const [reviewNotice, setReviewNotice] = useState('');
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideAnchor, setGuideAnchor] = useState<ReviewAnchor>();
@@ -44,10 +46,10 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   }>();
   const [undoFix, setUndoFix] = useState<{
     snippetId: string;
-    originalCode: string;
+    before: Review;
     appliedCode: string;
   }>();
-  const busy = loading || deletingId !== undefined || reviewing;
+  const busy = loading || deletingId !== undefined || reviewing || savingFix;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
   const guideSteps = activeSnippet ? getReviewSteps(activeSnippet) : [];
   const flowPalette = createFlowPalette(
@@ -112,44 +114,84 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       title: activeFinding.summary,
     });
   }
-  function applyFix() {
-    if (!preview || !activeSnippet || busy) return;
-    const code =
-      activeSnippet.code === preview.code
-        ? applyCodeEdit(activeSnippet.code, preview.edit)
+  async function applyFix() {
+    if (!preview || !activeSnippet || !activeFinding || busy) return;
+    const before = activeSnippet;
+    const updated =
+      before.code === preview.code
+        ? applyReviewFix(before, activeFinding.id)
         : undefined;
-    if (code === undefined) {
+    if (!updated) {
       setError(
         'This suggestion no longer matches the code. Review the snippet again.',
       );
       closeGuide();
       return;
     }
-    const originalCode = activeSnippet.code;
-    persist(changeSnippet({ code }));
-    setUndoFix({
-      snippetId: activeSnippet.id,
-      originalCode,
-      appliedCode: code,
-    });
-    setReviewNotice(
-      'Fix applied. Review the updated snippet to check it again.',
+    closeGuide();
+    setGuideStep(0);
+    setSavingFix(true);
+    setError('');
+    setSnippets((items) =>
+      items.map((item) => (item.id === updated.id ? updated : item)),
     );
-    requestAnimationFrame(() =>
-      document
-        .querySelector<HTMLTextAreaElement>('.code-input')
-        ?.focus({ preventScroll: true }),
-    );
+    try {
+      await api.saveReviewRevision(updated, before.code);
+      setUndoFix({ snippetId: before.id, before, appliedCode: updated.code });
+      setReviewNotice('Fix applied. Remaining findings updated.');
+    } catch (reason) {
+      setSnippets((items) =>
+        items.map((item) => (item.id === before.id ? before : item)),
+      );
+      setError(
+        reason instanceof Error ? reason.message : 'Could not save this fix.',
+      );
+    } finally {
+      setSavingFix(false);
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLTextAreaElement>('.code-input')
+          ?.focus({ preventScroll: true }),
+      );
+    }
   }
-  function undoAppliedFix() {
-    if (!canUndo || !undoFix) return;
-    persist(changeSnippet({ code: undoFix.originalCode }));
-    setReviewNotice('Fix undone.');
-    requestAnimationFrame(() =>
-      document
-        .querySelector<HTMLTextAreaElement>('.code-input')
-        ?.focus({ preventScroll: true }),
+  async function undoAppliedFix() {
+    if (!canUndo || !undoFix || !activeSnippet) return;
+    const applied = activeSnippet;
+    const undo = undoFix;
+    const restored = {
+      ...activeSnippet,
+      code: undo.before.code,
+      findings: undo.before.findings,
+      summary: undo.before.summary,
+      guideFindings: undo.before.guideFindings,
+    };
+    closeGuide();
+    setGuideStep(0);
+    setSavingFix(true);
+    setUndoFix(undefined);
+    setSnippets((items) =>
+      items.map((item) => (item.id === restored.id ? restored : item)),
     );
+    try {
+      await api.saveReviewRevision(restored, applied.code);
+      setReviewNotice('Fix undone. Previous review restored.');
+    } catch (reason) {
+      setSnippets((items) =>
+        items.map((item) => (item.id === applied.id ? applied : item)),
+      );
+      setUndoFix(undo);
+      setError(
+        reason instanceof Error ? reason.message : 'Could not undo this fix.',
+      );
+    } finally {
+      setSavingFix(false);
+      requestAnimationFrame(() =>
+        document
+          .querySelector<HTMLTextAreaElement>('.code-input')
+          ?.focus({ preventScroll: true }),
+      );
+    }
   }
   function openLineReview(line: number, anchor: ReviewAnchor) {
     const index = guideSteps.findIndex(
@@ -230,7 +272,9 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     const updated = {
       ...activeSnippet,
       ...patch,
-      ...(codeChanged ? { findings: [], summary: '' } : {}),
+      ...(codeChanged
+        ? { findings: [], summary: '', guideFindings: undefined }
+        : {}),
     };
     setSnippets((items) =>
       items.map((item) => (item.id === updated.id ? updated : item)),
@@ -479,9 +523,17 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                     <Icon name="check" size={15} />
                     <span>Fix applied</span>
                     <span className="fix-applied-hint">
-                      Review the updated snippet to check it again.
+                      {guideSteps.length
+                        ? `${guideSteps.length} remaining finding${guideSteps.length === 1 ? '' : 's'}`
+                        : 'No remaining findings'}
                     </span>
-                    <button onClick={undoAppliedFix}>Undo</button>
+                    <button
+                      onClick={() => {
+                        void undoAppliedFix();
+                      }}
+                    >
+                      Undo
+                    </button>
                   </div>
                 )}
                 <CodeEditor
@@ -491,14 +543,18 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                       ? {
                           edit: preview.edit,
                           title: preview.title,
-                          onApply: applyFix,
+                          onApply: () => {
+                            void applyFix();
+                          },
                           onBack: () => setFixPreview(undefined),
                         }
                       : undefined
                   }
                   language={activeSnippet.language}
                   disabled={busy}
-                  findings={activeSnippet.findings}
+                  findings={activeSnippet.findings.filter(
+                    (finding) => finding.status === 'open',
+                  )}
                   linkedRanges={showGuide ? selectedLinks : []}
                   flowNodes={activeFlow?.nodes}
                   sampleNodes={
@@ -555,7 +611,12 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                     <ReviewGuide
                       finding={guideSteps[guideStep]}
                       activeStep={explanationStep}
-                      onPreview={activeFinding?.edit ? previewFix : undefined}
+                      onPreview={
+                        activeFinding?.edit &&
+                        activeFinding.state !== 'needs-recheck'
+                          ? previewFix
+                          : undefined
+                      }
                       onStep={(index) => {
                         setExplanationStep(index);
                       }}

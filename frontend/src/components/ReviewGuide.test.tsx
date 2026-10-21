@@ -126,3 +126,29 @@ it('aligns each selected step to the top, including when it was already visible'
   expect(scrollArea.style.paddingBottom).toBe('');
   expect(container.querySelector('[aria-current="step"]')).toBeNull();
 });
+
+it('shows a recheck notice instead of a stale suggested fix', () => {
+  const finding: GuideFinding = {
+    id: 'stale',
+    summary: 'Changed finding',
+    description: 'This finding refers to changed code.',
+    severity: 'warning',
+    category: 'bug',
+    lineStart: 2,
+    lineEnd: 2,
+    steps: [],
+    fix: 'old fix',
+    state: 'needs-recheck',
+  };
+  render(
+    <ReviewGuide
+      finding={finding}
+      activeStep={-1}
+      onStep={() => {}}
+      onClose={() => {}}
+    />,
+  );
+  expect(screen.getByRole('status').textContent).toContain('Needs recheck');
+  expect(screen.queryByText('old fix')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Preview fix' })).toBeNull();
+});

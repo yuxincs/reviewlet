@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createMockReviewApi } from './mock';
 import { examples } from './examples';
+import { applyReviewFix } from '../reviewRemapping';
+import { getReviewSteps } from '../demoReviewGuide';
 
 beforeEach(() => localStorage.clear());
 
@@ -93,6 +95,32 @@ describe('mock review API', () => {
     expect(await createMockReviewApi(localStorage, 0).listReviews()).toEqual(
       [],
     );
+  });
+
+  it('persists remapped review revisions across renames and reloads and rejects stale saves', async () => {
+    const api = createMockReviewApi(localStorage, 0);
+    const [before] = await api.listReviews();
+    const updated = applyReviewFix(before, getReviewSteps(before)[0].id)!;
+    await api.saveReviewRevision(updated, before.code);
+    await api.saveSnippet(updated.id, { ...updated, title: 'Renamed lookup' });
+    const [stored] = await createMockReviewApi(localStorage, 0).listReviews();
+    expect(stored.title).toBe('Renamed lookup');
+    expect(stored.guideFindings).toEqual(updated.guideFindings);
+    expect(getReviewSteps(stored).map((finding) => finding.lineStart)).toEqual([
+      10, 8,
+    ]);
+    await expect(api.saveReviewRevision(before, before.code)).rejects.toThrow(
+      'snippet changed',
+    );
+    expect((await api.listReviews())[0].code).toBe(updated.code);
+    await api.saveReviewRevision(
+      { ...before, title: stored.title },
+      updated.code,
+    );
+    const [restored] = await createMockReviewApi(localStorage, 0).listReviews();
+    expect(restored.code).toBe(before.code);
+    expect(restored.findings).toEqual(before.findings);
+    expect(getReviewSteps(restored)).toHaveLength(3);
   });
 
   it('recovers from invalid saved history', async () => {

@@ -68,3 +68,12 @@ Include every affected line in one edit; for example, replacing a query definiti
 and its use must remove the old definition as well. Omit the edit when a complete
 replacement cannot be specified. The frontend verifies the source match before
 previewing or applying and rejects results longer than 30,000 characters.
+
+
+Applying a fix retains the review in a new revision. Findings, symbol references,
+flow endpoints, and remaining edit ranges are remapped to the updated code. The
+applied finding is resolved. Overlapping findings and ambiguous or missing symbol
+references are marked `needs-recheck`, with their stale flows and edits disabled.
+Unrelated findings remain actionable. Undo restores the preceding code and review
+revision together. The local mock saves revisions only against matching source
+code to reject stale updates.

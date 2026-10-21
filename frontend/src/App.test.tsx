@@ -167,6 +167,32 @@ describe('snippet editor workspace', () => {
     expect(submit).toHaveBeenCalledTimes(2);
   });
 
+  it('highlights review findings, preserves them on rename, and clears them on edits', async () => {
+    await openWorkspace();
+    const highlightedLines = () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>('.code-line.finding-line'),
+      ).map((line) => line.dataset.line);
+    expect(highlightedLines()).toEqual(['4', '7', '9']);
+    const title = screen.getByRole('textbox', { name: 'Snippet name' });
+    fireEvent.change(title, { target: { value: 'Renamed' } });
+    expect(highlightedLines()).toEqual(['4', '7', '9']);
+    const editor = screen.getByRole('textbox', { name: 'Code snippet' });
+    fireEvent.change(editor, { target: { value: 'eval(input);' } });
+    expect(highlightedLines()).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Review snippet' }));
+    await waitFor(() => expect(highlightedLines()).toEqual(['1']));
+    expect(editor.getAttribute('aria-describedby')).toBeTruthy();
+    cleanup();
+    render(<App api={createMockReviewApi(localStorage, 0)} />);
+    await screen.findByRole('button', { name: 'Renamed' });
+    expect(highlightedLines()).toEqual(['1']);
+    fireEvent.click(screen.getByRole('button', { name: 'New snippet' }));
+    expect(highlightedLines()).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Renamed' }));
+    expect(highlightedLines()).toEqual(['1']);
+  });
+
   it('normalizes empty names', async () => {
     await openWorkspace();
     const title = screen.getByRole('textbox', { name: 'Snippet name' });

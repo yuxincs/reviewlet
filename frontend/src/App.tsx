@@ -86,7 +86,15 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   ) {
     if (!activeSnippet) return undefined;
     setReviewNotice('');
-    const updated = { ...activeSnippet, ...patch };
+    const codeChanged =
+      (patch.code !== undefined && patch.code !== activeSnippet.code) ||
+      (patch.language !== undefined &&
+        patch.language !== activeSnippet.language);
+    const updated = {
+      ...activeSnippet,
+      ...patch,
+      ...(codeChanged ? { findings: [], summary: '' } : {}),
+    };
     setSnippets((items) =>
       items.map((item) => (item.id === updated.id ? updated : item)),
     );
@@ -322,7 +330,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
               code={activeSnippet?.code ?? ''}
               language={activeSnippet?.language ?? 'typescript'}
               disabled={busy || !activeSnippet}
-              highlightedLine={null}
+              findings={activeSnippet.findings}
               onChange={(code) => changeSnippet({ code })}
               onBlur={() => persist(activeSnippet)}
             />

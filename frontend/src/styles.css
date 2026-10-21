@@ -318,8 +318,9 @@ textarea::placeholder {
   display: block;
   height: 25px;
 }
-.line-numbers .active-line {
-  color: var(--accent-text);
+.line-numbers .finding-line-number {
+  color: var(--finding-line-color);
+  box-shadow: inset 3px 0 var(--finding-line-color);
 }
 .highlight-code,
 .code-input {
@@ -362,9 +363,17 @@ textarea::placeholder {
   min-width: max-content;
   height: 25px;
 }
-.highlight-line {
-  background: var(--line-highlight);
-  box-shadow: -4px 0 var(--accent-line);
+.finding-line-high {
+  --finding-line-color: var(--high-text);
+}
+.finding-line-medium {
+  --finding-line-color: var(--warning-text);
+}
+.finding-line-low {
+  --finding-line-color: var(--accent-text);
+}
+.finding-line {
+  background: color-mix(in srgb, var(--finding-line-color) 10%, transparent);
 }
 .token-keyword {
   color: var(--syntax-keyword);

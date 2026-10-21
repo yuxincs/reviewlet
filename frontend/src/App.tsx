@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { reviewApi } from './api/mock';
 import { examples } from './api/examples';
+import { getReviewSteps, hasDemoReviewGuide } from './demoReviewGuide';
+import { ReviewPopover, type ReviewAnchor } from './components/ReviewPopover';
+import { ReviewGuide } from './components/ReviewGuide';
 import { CodeEditor } from './components/CodeEditor';
 import { Icon } from './components/Icon';
 import { SnippetSidebar } from './components/SnippetSidebar';
@@ -27,8 +30,30 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const reviewInFlight = useRef(false);
   const [reviewing, setReviewing] = useState(false);
   const [reviewNotice, setReviewNotice] = useState('');
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideAnchor, setGuideAnchor] = useState<ReviewAnchor>();
+  const [guideStep, setGuideStep] = useState(0);
+  const [guideLine, setGuideLine] = useState<number>();
   const busy = loading || deletingId !== undefined || reviewing;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
+  const guideSteps = activeSnippet ? getReviewSteps(activeSnippet) : [];
+  const showGuide = guideOpen && guideSteps.length > 0 && !reviewing;
+  function closeGuide() {
+    setGuideOpen(false);
+  }
+  function openLineReview(line: number, anchor: ReviewAnchor) {
+    const index = guideSteps.findIndex(
+      (step) => line >= step.lineStart && line <= step.lineEnd,
+    );
+    if (index < 0) {
+      closeGuide();
+      return;
+    }
+    setGuideStep(index);
+    setGuideLine(undefined);
+    setGuideAnchor(anchor);
+    setGuideOpen(true);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +110,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     patch: Partial<Pick<Review, 'title' | 'code' | 'language'>>,
   ) {
     if (!activeSnippet) return undefined;
+    closeGuide();
     setReviewNotice('');
     const codeChanged =
       (patch.code !== undefined && patch.code !== activeSnippet.code) ||
@@ -101,6 +127,8 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     return updated;
   }
   function selectSnippet(snippet: Review) {
+    setGuideStep(0);
+    closeGuide();
     setReviewNotice('');
     persist(activeSnippet);
     closeMobileSidebar();
@@ -116,6 +144,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     });
   }
   function addSnippet(input: ReviewInput) {
+    closeGuide();
     setReviewNotice('');
     persist(activeSnippet);
     closeMobileSidebar();
@@ -141,6 +170,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     if (busy || reviewInFlight.current || !activeSnippet?.code.trim()) return;
     reviewInFlight.current = true;
     setReviewing(true);
+    closeGuide();
     setReviewNotice('');
     setError('');
     try {
@@ -153,6 +183,8 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       setSnippets((items) =>
         items.map((item) => (item.id === reviewed.id ? reviewed : item)),
       );
+      setGuideStep(0);
+      closeGuide();
       const count = reviewed.findings.length;
       setReviewNotice(
         `Demo review complete: ${count} ${count === 1 ? 'finding' : 'findings'}.`,
@@ -171,6 +203,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
 
   async function deleteSnippet(snippet: Review) {
     if (busy) return;
+    closeGuide();
     setReviewNotice('');
     setDeletingId(snippet.id);
     deletedIds.current.add(snippet.id);
@@ -312,7 +345,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
             </div>
           )}
           {reviewNotice && (
-            <div className="review-notice" role="status">
+            <div className="sr-only" role="status">
               {reviewNotice}
             </div>
           )}
@@ -326,14 +359,34 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
               onDemo={() => addSnippet(examples.database)}
             />
           ) : (
-            <CodeEditor
-              code={activeSnippet?.code ?? ''}
-              language={activeSnippet?.language ?? 'typescript'}
-              disabled={busy || !activeSnippet}
-              findings={activeSnippet.findings}
-              onChange={(code) => changeSnippet({ code })}
-              onBlur={() => persist(activeSnippet)}
-            />
+            <div className="review-editor-layout">
+              <CodeEditor
+                code={activeSnippet.code}
+                language={activeSnippet.language}
+                disabled={busy}
+                findings={activeSnippet.findings}
+                linkedRanges={showGuide ? guideSteps[guideStep].ranges : []}
+                focusedLine={showGuide ? guideLine : undefined}
+                onReviewLine={openLineReview}
+                onDismissReview={closeGuide}
+                onChange={(code) => changeSnippet({ code })}
+                onBlur={() => persist(activeSnippet)}
+              />
+              {guideAnchor && guideSteps[guideStep] && (
+                <ReviewPopover
+                  open={showGuide}
+                  anchor={guideAnchor}
+                  onClose={closeGuide}
+                >
+                  <ReviewGuide
+                    step={guideSteps[guideStep]}
+                    isDemo={hasDemoReviewGuide(activeSnippet)}
+                    onLine={setGuideLine}
+                    onClose={closeGuide}
+                  />
+                </ReviewPopover>
+              )}
+            </div>
           )}
         </main>
       </div>

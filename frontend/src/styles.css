@@ -314,9 +314,20 @@ textarea::placeholder {
   user-select: none;
   border-right: 1px solid var(--line);
 }
-.line-numbers > span {
+.line-numbers > span,
+.line-numbers > button {
   display: block;
   height: 25px;
+  width: 100%;
+}
+.line-numbers > button {
+  padding: 0;
+  font: inherit;
+  text-align: inherit;
+  border-radius: 0;
+}
+.line-numbers > button:hover:not(:disabled) {
+  background: var(--accent-soft);
 }
 .line-numbers .finding-line-number {
   color: var(--finding-line-color);
@@ -1468,13 +1479,6 @@ textarea::placeholder {
     stroke-dasharray: none;
   }
 }
-.review-notice {
-  flex-shrink: 0;
-  padding: 12px 22px;
-  color: var(--accent-text);
-  background: var(--accent-soft);
-  font-size: 12px;
-}
 .snippet-name-input:hover:not(:disabled) {
   background: var(--subtle);
 }
@@ -1950,5 +1954,204 @@ textarea::placeholder {
   }
   .welcome-page h1 {
     font-size: 28px;
+  }
+}
+
+.review-editor-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.review-editor-layout > .editor-shell {
+  min-width: 0;
+}
+.review-guide {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  background: var(--card);
+  border-radius: inherit;
+}
+.guide-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 22px 18px;
+}
+.guide-eyebrow {
+  font-size: 8px;
+  letter-spacing: 1.3px;
+  color: var(--muted);
+}
+.guide-header h2 {
+  font-size: 16px;
+  font-weight: 500;
+  margin-top: 6px;
+}
+.guide-header > button {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  color: var(--muted);
+}
+.guide-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px;
+}
+.guide-content h3 {
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-top: 14px;
+}
+.guide-content > p,
+.guide-check p {
+  font-size: 12px;
+  color: var(--body);
+  line-height: 1.85;
+  margin-top: 12px;
+}
+.guide-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 20px 0;
+}
+.guide-role-source {
+  --guide-color: var(--accent-text);
+}
+.guide-role-transform {
+  --guide-color: var(--syntax-keyword);
+}
+.guide-role-sink {
+  --guide-color: var(--warning-text);
+}
+.guide-reference {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 9px 10px;
+  border-radius: 5px;
+  color: var(--guide-color);
+  background: color-mix(in srgb, var(--guide-color) 8%, transparent);
+}
+.guide-reference:hover {
+  background: color-mix(in srgb, var(--guide-color) 16%, transparent);
+}
+.guide-reference code {
+  font: 11px var(--mono);
+}
+.guide-reference > span {
+  font-size: 8px;
+  color: var(--muted);
+}
+.guide-symbol {
+  color: inherit;
+  background: color-mix(in srgb, var(--guide-color) 22%, transparent);
+  box-shadow: 0 2px var(--guide-color);
+  border-radius: 2px;
+}
+.guide-linked-line {
+  box-shadow: inset 2px 0 var(--accent-text);
+}
+.guide-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+}
+.guide-check > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+  color: var(--accent-text);
+}
+.guide-check p {
+  margin: 0;
+  font-size: 11px;
+}
+.guide-content h4 {
+  margin-top: 22px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.guide-fix {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 5px;
+  background: var(--subtle);
+  color: var(--code);
+  font: 10px/1.8 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.guide-content > .guide-footnote {
+  margin-top: 18px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.review-popover {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  bottom: 48px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  width: min(380px, calc(100% - 32px));
+  border: 1px solid var(--accent-line);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 16px 50px #00000040;
+  transform-origin: top right;
+}
+.review-popover.is-open {
+  animation: review-popover-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.review-popover.is-closing {
+  pointer-events: none;
+  animation: review-popover-out 150ms ease-in both;
+}
+@keyframes review-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes review-popover-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .review-popover.is-open,
+  .review-popover.is-closing {
+    animation: none;
+  }
+  .review-popover.is-closing {
+    opacity: 0;
+  }
+}
+@media (max-width: 650px) {
+  .guide-header {
+    padding: 12px 18px;
+  }
+  .guide-content {
+    padding: 16px 18px;
   }
 }

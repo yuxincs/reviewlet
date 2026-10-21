@@ -193,6 +193,151 @@ describe('snippet editor workspace', () => {
     expect(highlightedLines()).toEqual(['1']);
   });
 
+  it('opens the floating guide from a finding line and dismisses it outside or with Escape', async () => {
+    await openWorkspace();
+    expect(screen.queryByRole('dialog', { name: 'Review guide' })).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    );
+    const guide = screen.getByRole('dialog', { name: 'Review guide' });
+    expect(
+      within(guide).getByRole('heading', { name: 'Follow the input into SQL' }),
+    ).toBeTruthy();
+    expect(
+      document.querySelectorAll('mark[data-symbol="userId"]'),
+    ).toHaveLength(2);
+    const queryLine = document.querySelector('[data-line="6"]')!;
+    expect(
+      queryLine.querySelector('mark[data-symbol="query"]')?.textContent,
+    ).toBe('query');
+    expect(
+      Array.from(queryLine.querySelectorAll('mark[data-symbol="db.query"]'))
+        .map((mark) => mark.textContent)
+        .join(''),
+    ).toBe('db.query');
+    fireEvent.click(
+      within(guide).getByRole('heading', { name: 'Follow the input into SQL' }),
+    );
+    expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
+    expect(
+      within(guide).queryByRole('navigation', { name: 'Review steps' }),
+    ).toBeNull();
+    expect(
+      within(guide).queryByRole('heading', {
+        name: 'Check the empty-result path',
+      }),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 9' }),
+    );
+    expect(
+      within(guide).getByRole('heading', {
+        name: 'Check the empty-result path',
+      }),
+    ).toBeTruthy();
+    expect(document.querySelectorAll('mark[data-symbol="users"]')).toHaveLength(
+      2,
+    );
+    fireEvent.click(
+      within(guide).getByRole('button', {
+        name: 'Show users on line 9 (sink)',
+      }),
+    );
+    expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 7' }),
+    );
+    expect(
+      within(guide).getByRole('heading', {
+        name: 'Review what leaves through logs',
+      }),
+    ).toBeTruthy();
+    expect(
+      within(guide).queryByRole('heading', {
+        name: 'Follow the input into SQL',
+      }),
+    ).toBeNull();
+    expect(
+      within(guide).queryByRole('heading', {
+        name: 'Check the empty-result path',
+      }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('textbox', { name: 'Snippet name' }));
+    expect(screen.queryByRole('dialog', { name: 'Review guide' })).toBeNull();
+    expect(document.querySelector('mark.guide-symbol')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 9' }),
+    );
+    expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Review guide' })).toBeNull();
+    expect(document.activeElement).toBe(
+      screen.getByRole('textbox', { name: 'Code snippet' }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    );
+    fireEvent.change(screen.getByRole('textbox', { name: 'Code snippet' }), {
+      target: { value: 'const changed = true;' },
+    });
+    expect(screen.queryByRole('dialog', { name: 'Review guide' })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Show review for line 4' }),
+    ).toBeNull();
+  });
+
+  it('opens findings by clicking the code surface with scroll offsets and dismisses on unmarked lines', async () => {
+    await openWorkspace();
+    const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Code snippet',
+    });
+    editor.style.paddingTop = '24px';
+    editor.style.lineHeight = '25px';
+    fireEvent.click(editor, { clientX: 160, clientY: 112 });
+    expect(
+      screen.getByRole('heading', { name: 'Follow the input into SQL' }),
+    ).toBeTruthy();
+    editor.scrollTop = 75;
+    fireEvent.click(editor, { clientX: 160, clientY: 112 });
+    expect(
+      screen.getByRole('heading', { name: 'Review what leaves through logs' }),
+    ).toBeTruthy();
+    editor.scrollTop = 0;
+    fireEvent.click(editor, { clientX: 160, clientY: 61 });
+    expect(screen.queryByRole('dialog', { name: 'Review guide' })).toBeNull();
+    editor.setSelectionRange(
+      examples.database.code.indexOf('  const query'),
+      examples.database.code.indexOf('  const query'),
+    );
+    fireEvent.keyDown(editor, { key: 'Enter', altKey: true });
+    expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
+  });
+
+  it('shows explanations for findings outside the static demo too', async () => {
+    await openWorkspace();
+    const editor = screen.getByRole('textbox', { name: 'Code snippet' });
+    fireEvent.change(editor, { target: { value: 'eval(input);' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review snippet' }));
+    const trigger = await screen.findByRole('button', {
+      name: 'Show review for line 1',
+    });
+    fireEvent.click(trigger);
+    const guide = screen.getByRole('dialog', { name: 'Review guide' });
+    expect(
+      within(guide).getByRole('heading', {
+        name: 'Untrusted input can execute code',
+      }),
+    ).toBeTruthy();
+    expect(
+      within(guide).getByText(/eval executes its input as code/),
+    ).toBeTruthy();
+    expect(document.querySelector('mark.guide-symbol')).toBeNull();
+    fireEvent.click(
+      within(guide).getByRole('button', { name: 'Close review guide' }),
+    );
+    expect(screen.queryByRole('dialog', { name: 'Review guide' })).toBeNull();
+  });
+
   it('normalizes empty names', async () => {
     await openWorkspace();
     const title = screen.getByRole('textbox', { name: 'Snippet name' });

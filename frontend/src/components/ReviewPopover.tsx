@@ -91,7 +91,16 @@ export function ReviewPopover({
       );
       const targetBottom =
         lineBounds && lineBounds.height > 0 ? lineBounds.bottom : anchor.y;
-      const top = Math.max(16, targetBottom - bounds.top + 12);
+      const flowBottom = Math.max(
+        targetBottom,
+        ...Array.from(
+          editor.querySelectorAll<SVGPathElement>('.data-flow-track'),
+        )
+          .map((path) => path.getBoundingClientRect())
+          .filter((rect) => rect.height > 0 || rect.width > 0)
+          .map((rect) => rect.bottom + 5),
+      );
+      const top = Math.max(16, flowBottom - bounds.top + 32);
       const maxHeight = Math.max(0, Math.min(600, codeBottom - top - 16));
       setPosition((previous) =>
         previous.left === left &&
@@ -110,10 +119,23 @@ export function ReviewPopover({
         : undefined;
     observer?.observe(editor);
     observer?.observe(element);
+    const flowLayer = editor.querySelector('.data-flow-overlay');
+    const flowObserver =
+      flowLayer && typeof MutationObserver !== 'undefined'
+        ? new MutationObserver(placePanel)
+        : undefined;
+    if (flowLayer)
+      flowObserver?.observe(flowLayer, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['d'],
+      });
     return () => {
       editor.removeEventListener('scroll', placePanel, true);
       window.removeEventListener('resize', placePanel);
       observer?.disconnect();
+      flowObserver?.disconnect();
     };
   }, [anchor, focusedLine, present, children]);
 

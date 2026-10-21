@@ -16,6 +16,11 @@ afterEach(() => {
 it('sits below the final focused line and adapts to scrolling and available space', async () => {
   let scroll = 0;
   let width = 1000;
+  let flowBottom = 0;
+  vi.spyOn(SVGElement.prototype, 'getBoundingClientRect').mockImplementation(
+    () =>
+      flowBottom ? new DOMRect(200, 200, 100, flowBottom - 200) : new DOMRect(),
+  );
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
     function (this: HTMLElement) {
       if (this.dataset.testid === 'editor')
@@ -45,6 +50,9 @@ it('sits below the final focused line and adapts to scrolling and available spac
           <mark className="guide-symbol">query</mark>
         </div>
       </div>
+      <svg className="data-flow-overlay">
+        <path className="data-flow-track" d="M 0 0" />
+      </svg>
       <ReviewPopover
         open
         anchor={{ x: 150, y: 200 }}
@@ -58,18 +66,26 @@ it('sits below the final focused line and adapts to scrolling and available spac
   const { rerender } = render(view(4));
   const panel = screen.getByRole('dialog', { name: 'Review guide' });
   expect(panel.style.left).toBe('200px');
-  expect(panel.style.top).toBe('187px');
+  expect(panel.style.top).toBe('207px');
   rerender(view(8));
   expect(panel.style.left).toBe('350px');
-  expect(panel.style.top).toBe('407px');
-  expect(panel.style.maxHeight).toBe('345px');
+  expect(panel.style.top).toBe('427px');
+  expect(panel.style.maxHeight).toBe('325px');
   scroll = 100;
   fireEvent.scroll(screen.getByTestId('editor').querySelector('.code-editor')!);
-  await waitFor(() => expect(panel.style.top).toBe('307px'));
+  await waitFor(() => expect(panel.style.top).toBe('327px'));
   width = 500;
   fireEvent(window, new Event('resize'));
   await waitFor(() =>
     expect(parseFloat(panel.style.left) + 380).toBeLessThanOrEqual(width - 16),
+  );
+  flowBottom = 520;
+  const path = screen.getByTestId('editor').querySelector('.data-flow-track')!;
+  path.setAttribute('d', 'M 0 0 C 20 10 40 500 50 520');
+  await waitFor(() =>
+    expect(parseFloat(panel.style.top) + 50).toBeGreaterThanOrEqual(
+      flowBottom + 32,
+    ),
   );
   expect(onClose).not.toHaveBeenCalled();
 });

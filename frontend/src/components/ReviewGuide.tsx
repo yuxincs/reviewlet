@@ -25,7 +25,12 @@ export function ReviewGuide({
     if (!container) return;
     const alignStep = () => {
       const active = container.querySelector<HTMLElement>('.guide-step-active');
-      if (!active || !container.clientHeight) return;
+      if (!active) {
+        container.style.paddingBottom = '';
+        container.scrollTop = 0;
+        return;
+      }
+      if (!container.clientHeight) return;
       const inset = parseFloat(getComputedStyle(container).paddingTop) || 0;
       // Leave enough trailing space for even the last step to reach the top.
       container.style.paddingBottom = `${Math.max(inset, container.clientHeight - active.offsetHeight - inset)}px`;
@@ -72,6 +77,13 @@ export function ReviewGuide({
           <span className="guide-category">{finding.category}</span>
           <span className="guide-summary-text">{finding.summary}</span>
         </h2>
+        <button
+          className="guide-overview-button"
+          aria-pressed={activeStep === -1}
+          onClick={() => onStep(-1)}
+        >
+          Overview
+        </button>
         <ol className="guide-explanation-steps" aria-label="Explanation steps">
           {finding.steps.map((step, index) => (
             <li

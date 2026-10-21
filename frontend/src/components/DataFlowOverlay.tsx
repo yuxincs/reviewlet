@@ -8,7 +8,13 @@ import {
 import { routeDataFlows } from '../dataFlowRouting';
 import type { GuideFlowNode } from '../demoReviewGuide';
 
-export function DataFlowOverlay({ nodes }: { nodes: GuideFlowNode[] }) {
+export function DataFlowOverlay({
+  nodes,
+  connections,
+}: {
+  nodes: GuideFlowNode[];
+  connections?: { from: number; to: number }[];
+}) {
   const palette = useFlowPalette();
   const layer = useRef<SVGSVGElement>(null);
   const marker = useId().replaceAll(':', '');
@@ -36,12 +42,15 @@ export function DataFlowOverlay({ nodes }: { nodes: GuideFlowNode[] }) {
         const top = rects[0].top - bounds.top;
         return { left, right, top, bottom: rects[0].bottom - bounds.top };
       });
-      const next = routeDataFlows(positions, bounds.width, bounds.height).map(
-        (route) => ({
-          path: route.path,
-          color: flowColor(nodes[route.to], palette),
-        }),
-      );
+      const next = routeDataFlows(
+        positions,
+        bounds.width,
+        bounds.height,
+        connections,
+      ).map((route) => ({
+        path: route.path,
+        color: flowColor(nodes[route.to], palette),
+      }));
       setPaths((previous) =>
         JSON.stringify(previous) === JSON.stringify(next) ? previous : next,
       );
@@ -59,7 +68,7 @@ export function DataFlowOverlay({ nodes }: { nodes: GuideFlowNode[] }) {
       window.removeEventListener('resize', measure);
       observer?.disconnect();
     };
-  }, [nodes, palette]);
+  }, [nodes, connections, palette]);
   return (
     <svg ref={layer} className="data-flow-overlay" aria-hidden="true">
       <defs>

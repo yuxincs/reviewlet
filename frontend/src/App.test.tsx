@@ -343,9 +343,17 @@ describe('snippet editor workspace', () => {
     const panel = screen.getByRole('dialog', { name: 'Review guide' });
     const selected = () =>
       panel.querySelector('[aria-current="step"]')?.textContent;
-    expect(selected()).toContain('userId flows');
+    expect(selected()).toBeUndefined();
+    expect(document.querySelector('mark[data-symbol="db.query"]')).toBeTruthy();
     fireEvent.keyDown(panel, { key: 'ArrowLeft' });
+    expect(selected()).toBeUndefined();
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
     expect(selected()).toContain('userId flows');
+    expect(document.querySelector('mark[data-symbol="db.query"]')).toBeNull();
+    fireEvent.keyDown(panel, { key: 'ArrowLeft' });
+    expect(selected()).toBeUndefined();
+    expect(document.querySelector('mark[data-symbol="db.query"]')).toBeTruthy();
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
     fireEvent.keyDown(panel, { key: 'ArrowRight' });
     expect(selected()).toContain('The interpolated query');
     expect(document.querySelector('mark[data-symbol="query"]')).toBeTruthy();
@@ -367,7 +375,7 @@ describe('snippet editor workspace', () => {
     expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
   });
 
-  it('navigates findings in code order with Up/Down and starts each finding at its first step', async () => {
+  it('navigates findings in code order with Up/Down and starts each finding with an overview', async () => {
     await openWorkspace();
     fireEvent.click(
       screen.getByRole('button', { name: 'Show review for line 4' }),
@@ -375,6 +383,7 @@ describe('snippet editor workspace', () => {
     const panel = screen.getByRole('dialog', { name: 'Review guide' });
     const selected = () =>
       panel.querySelector('[aria-current="step"]')?.textContent;
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
     fireEvent.keyDown(panel, { key: 'ArrowRight' });
     expect(selected()).toContain('The interpolated query');
     fireEvent.keyDown(panel, { key: 'ArrowUp' });
@@ -387,13 +396,14 @@ describe('snippet editor workspace', () => {
     expect(
       within(panel).getByRole('heading', { name: /User data may reach logs/ }),
     ).toBeTruthy();
-    expect(selected()).toContain('The full users result');
+    expect(selected()).toBeUndefined();
+    expect(document.querySelector('mark[data-symbol="SELECT *"]')).toBeTruthy();
     expect(document.activeElement).toBe(panel);
     fireEvent.keyDown(panel, { key: 'ArrowDown' });
     expect(
       within(panel).getByRole('heading', { name: /Missing user is unchecked/ }),
     ).toBeTruthy();
-    expect(selected()).toContain('users flows');
+    expect(selected()).toBeUndefined();
     fireEvent.keyDown(panel, { key: 'ArrowDown' });
     expect(
       within(panel).getByRole('heading', { name: /Missing user is unchecked/ }),
@@ -413,7 +423,8 @@ describe('snippet editor workspace', () => {
     expect(
       within(panel).getByRole('heading', { name: /SQL injection risk/ }),
     ).toBeTruthy();
-    expect(selected()).toContain('userId flows');
+    expect(selected()).toBeUndefined();
+    expect(document.querySelector('mark[data-symbol="db.query"]')).toBeTruthy();
   });
 
   it('automatically shows variable-colored flows only in the editor', async () => {
@@ -441,6 +452,7 @@ describe('snippet editor workspace', () => {
     expect(queryHue).toBeTruthy();
     expect(queryHue).not.toBe(inputHue);
     fireEvent.keyDown(panel, { key: 'ArrowRight' });
+    fireEvent.keyDown(panel, { key: 'ArrowRight' });
     expect(hue('query')).toBe(queryHue);
     expect(hue('db.query')).toBeTruthy();
     expect(hue('db.query')).not.toBe(queryHue);
@@ -461,6 +473,14 @@ describe('snippet editor workspace', () => {
       }),
     );
     expect(hue('userId')).toBe(inputHue);
+    fireEvent.click(within(panel).getByRole('button', { name: 'Overview' }));
+    expect(panel.querySelector('[aria-current="step"]')).toBeNull();
+    expect(hue('db.query')).toBeTruthy();
+    expect(
+      within(panel)
+        .getByRole('button', { name: 'Overview' })
+        .getAttribute('aria-pressed'),
+    ).toBe('true');
     expect(
       within(panel).queryByRole('group', { name: /data flow/ }),
     ).toBeNull();

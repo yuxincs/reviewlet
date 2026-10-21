@@ -123,4 +123,10 @@ it('aligns each selected step to the top, including when it was already visible'
   expect(scrollArea.style.paddingBottom).toBe('328px');
   rerender(view(0));
   expect(scrollArea.scrollTop).toBe(48);
+  rerender(view(-1));
+  expect(scrollArea.scrollTop).toBe(0);
+  expect(scrollArea.style.paddingBottom).toBe('');
+  expect(
+    container.querySelector('button[aria-pressed="true"]')?.textContent,
+  ).toBe('Overview');
 });

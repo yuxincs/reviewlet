@@ -91,12 +91,15 @@ it('colors each segment by its destination, even when earlier nodes have no code
       return new DOMRect(0, 0, 500, 300);
     },
   );
-  const view = (nodes: GuideFlowNode[]) => (
+  const view = (
+    nodes: GuideFlowNode[],
+    connections?: { from: number; to: number }[],
+  ) => (
     <div>
       <mark data-reference="1:1:4">input</mark>
       <mark data-reference="1:8:11">transformed</mark>
       <mark data-reference="1:15:18">output</mark>
-      <DataFlowOverlay nodes={nodes} />
+      <DataFlowOverlay nodes={nodes} connections={connections} />
     </div>
   );
   const { container, rerender } = render(view([source, middle, sink]));
@@ -112,4 +115,8 @@ it('colors each segment by its destination, even when earlier nodes have no code
   ]);
   rerender(view([source, { label: 'unmapped operation' }, middle, sink]));
   expect(hues()).toEqual([String(flowColor(sink))]);
+  rerender(view([source, middle, sink], [{ from: 0, to: 2 }]));
+  expect(hues()).toEqual([String(flowColor(sink))]);
+  rerender(view([source, middle, sink], []));
+  expect(hues()).toEqual([]);
 });

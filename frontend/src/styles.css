@@ -2282,3 +2282,20 @@ textarea::placeholder {
 .guide-symbol.flow-color {
   color: var(--flow-color);
 }
+
+.guide-overview-button {
+  margin: 0 0 14px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.guide-overview-button[aria-pressed='true'],
+.guide-overview-button:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}

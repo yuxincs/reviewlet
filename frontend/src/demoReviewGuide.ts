@@ -16,6 +16,7 @@ export interface GuideFlowNode {
 }
 export interface GuideFlow {
   kind: 'current' | 'proposed';
+  connections?: { from: number; to: number }[];
   nodes: GuideFlowNode[];
 }
 export interface GuideStep {
@@ -34,6 +35,62 @@ export interface GuideFinding {
   lineEnd: number;
   steps: GuideStep[];
   fix: string;
+}
+
+// Merge existing-code paths without linking unrelated branches or proposed changes.
+export function getFindingOverview(finding: GuideFinding): GuideStep {
+  const nodes: GuideFlowNode[] = [];
+  const indices = new Map<string, number>();
+  const links = new Map<string, GuideRange>();
+  const connections = new Map<string, { from: number; to: number }>();
+  const key = (ref: GuideRange) =>
+    `${ref.line}:${ref.startColumn}:${ref.endColumn}`;
+  for (const step of finding.steps) {
+    if (step.flow?.kind === 'proposed') continue;
+    for (const ref of step.links ?? []) links.set(key(ref), ref);
+    const flow = step.flow;
+    if (!flow) continue;
+    const mapped = flow.nodes.map((node) => {
+      if (!node.reference) return undefined;
+      const id = key(node.reference);
+      links.set(id, node.reference);
+      let index = indices.get(id);
+      if (index === undefined) {
+        index = nodes.length;
+        indices.set(id, index);
+        nodes.push(node);
+      }
+      return index;
+    });
+    const edges =
+      flow.connections ??
+      flow.nodes.slice(1).map((_, i) => ({ from: i, to: i + 1 }));
+    for (const edge of edges) {
+      const from = mapped[edge.from],
+        to = mapped[edge.to];
+      if (from === undefined || to === undefined || from === to) continue;
+      connections.set(`${from}:${to}`, { from, to });
+    }
+  }
+  // Prefer the detailed path when another step summarizes it with a shortcut.
+  for (const [id, edge] of connections) {
+    const visited = new Set<number>();
+    const pending = [edge.from];
+    while (pending.length) {
+      const from = pending.pop()!;
+      if (visited.has(from)) continue;
+      visited.add(from);
+      for (const [otherId, other] of connections) {
+        if (otherId !== id && other.from === from) pending.push(other.to);
+      }
+    }
+    if (visited.has(edge.to)) connections.delete(id);
+  }
+  return {
+    description: finding.summary,
+    links: [...links.values()],
+    flow: { kind: 'current', nodes, connections: [...connections.values()] },
+  };
 }
 
 // Locations are one-based, with an exclusive end column, and apply only to this exact example.

@@ -92,6 +92,7 @@ export function CodeEditor({
   linkedRanges = [],
   reviewFocus,
   flowNodes = [],
+  flowConnections,
   focusedLine,
   onReviewLine,
   onDismissReview,
@@ -105,6 +106,7 @@ export function CodeEditor({
   linkedRanges?: GuideRange[];
   reviewFocus?: { lineStart: number; lineEnd: number };
   flowNodes?: GuideFlowNode[];
+  flowConnections?: { from: number; to: number }[];
   focusedLine?: number;
   onReviewLine?: (line: number, anchor: ReviewAnchor) => void;
   onDismissReview?: () => void;
@@ -241,7 +243,9 @@ export function CodeEditor({
             </span>
           ))}
         </pre>
-        {flowNodes.length > 0 && <DataFlowOverlay nodes={flowNodes} />}
+        {flowNodes.length > 0 && (
+          <DataFlowOverlay nodes={flowNodes} connections={flowConnections} />
+        )}
         <textarea
           ref={textarea}
           aria-label="Code snippet"

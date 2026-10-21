@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { reviewApi } from './api/mock';
 import { createFlowPalette, FlowColorContext } from './flowColors';
 import { examples } from './api/examples';
-import { getReviewSteps, hasDemoReviewGuide } from './demoReviewGuide';
+import {
+  getFindingOverview,
+  getReviewSteps,
+  hasDemoReviewGuide,
+} from './demoReviewGuide';
 import { ReviewPopover, type ReviewAnchor } from './components/ReviewPopover';
 import { ReviewGuide } from './components/ReviewGuide';
 import { CodeEditor } from './components/CodeEditor';
@@ -35,7 +39,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const [guideAnchor, setGuideAnchor] = useState<ReviewAnchor>();
   const [guideStep, setGuideStep] = useState(0);
   const [guideLine, setGuideLine] = useState<number>();
-  const [explanationStep, setExplanationStep] = useState(0);
+  const [explanationStep, setExplanationStep] = useState(-1);
   const busy = loading || deletingId !== undefined || reviewing;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
   const guideSteps = activeSnippet ? getReviewSteps(activeSnippet) : [];
@@ -51,7 +55,12 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     ),
   );
   const showGuide = guideOpen && guideSteps.length > 0 && !reviewing;
-  const activeStep = guideSteps[guideStep]?.steps[explanationStep];
+  const activeFinding = guideSteps[guideStep];
+  const activeStep = activeFinding
+    ? explanationStep === -1
+      ? getFindingOverview(activeFinding)
+      : activeFinding.steps[explanationStep]
+    : undefined;
   const activeFlow = showGuide ? activeStep?.flow : undefined;
   const selectedLinks = [
     ...new Map(
@@ -81,7 +90,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       return;
     }
     setGuideStep(index);
-    setExplanationStep(0);
+    setExplanationStep(-1);
     setGuideLine(undefined);
     setGuideAnchor(anchor);
     setGuideOpen(true);
@@ -400,6 +409,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                   findings={activeSnippet.findings}
                   linkedRanges={showGuide ? selectedLinks : []}
                   flowNodes={activeFlow?.nodes}
+                  flowConnections={activeFlow?.connections}
                   reviewFocus={showGuide ? guideSteps[guideStep] : undefined}
                   focusedLine={
                     showGuide ? (guideLine ?? focusedPortionEnd) : undefined
@@ -434,13 +444,13 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                         ].index;
                       if (next === guideStep) return;
                       setGuideStep(next);
-                      setExplanationStep(0);
+                      setExplanationStep(-1);
                       setGuideLine(undefined);
                     }}
                     onNavigate={(direction) => {
                       setExplanationStep((current) =>
                         Math.max(
-                          0,
+                          -1,
                           Math.min(
                             current + direction,
                             guideSteps[guideStep].steps.length - 1,

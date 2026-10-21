@@ -2,11 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { reviewApi } from './api/mock';
 import { createFlowPalette, FlowColorContext } from './flowColors';
 import { examples } from './api/examples';
-import {
-  getFindingOverview,
-  getReviewSteps,
-  hasDemoReviewGuide,
-} from './demoReviewGuide';
+import { getFindingOverview, getReviewSteps } from './demoReviewGuide';
 import { ReviewPopover, type ReviewAnchor } from './components/ReviewPopover';
 import { ReviewGuide } from './components/ReviewGuide';
 import { CodeEditor } from './components/CodeEditor';
@@ -38,7 +34,6 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideAnchor, setGuideAnchor] = useState<ReviewAnchor>();
   const [guideStep, setGuideStep] = useState(0);
-  const [guideLine, setGuideLine] = useState<number>();
   const [explanationStep, setExplanationStep] = useState(-1);
   const busy = loading || deletingId !== undefined || reviewing;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
@@ -91,7 +86,6 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     }
     setGuideStep(index);
     setExplanationStep(-1);
-    setGuideLine(undefined);
     setGuideAnchor(anchor);
     setGuideOpen(true);
   }
@@ -409,11 +403,12 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                   findings={activeSnippet.findings}
                   linkedRanges={showGuide ? selectedLinks : []}
                   flowNodes={activeFlow?.nodes}
+                  sampleNodes={
+                    explanationStep >= 0 ? activeFlow?.nodes : undefined
+                  }
                   flowConnections={activeFlow?.connections}
                   reviewFocus={showGuide ? guideSteps[guideStep] : undefined}
-                  focusedLine={
-                    showGuide ? (guideLine ?? focusedPortionEnd) : undefined
-                  }
+                  focusedLine={showGuide ? focusedPortionEnd : undefined}
                   onReviewLine={openLineReview}
                   onDismissReview={closeGuide}
                   onChange={(code) => changeSnippet({ code })}
@@ -445,7 +440,6 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                       if (next === guideStep) return;
                       setGuideStep(next);
                       setExplanationStep(-1);
-                      setGuideLine(undefined);
                     }}
                     onNavigate={(direction) => {
                       setExplanationStep((current) =>
@@ -457,7 +451,6 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                           ),
                         ),
                       );
-                      setGuideLine(undefined);
                     }}
                     onClose={closeGuide}
                   >
@@ -466,10 +459,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                       activeStep={explanationStep}
                       onStep={(index) => {
                         setExplanationStep(index);
-                        setGuideLine(undefined);
                       }}
-                      isDemo={hasDemoReviewGuide(activeSnippet)}
-                      onLine={setGuideLine}
                       onClose={closeGuide}
                     />
                   </ReviewPopover>

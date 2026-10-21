@@ -12,6 +12,8 @@ export interface GuideRange {
 export interface GuideFlowNode {
   label: string;
   flowKey?: string;
+  // Illustrative value at this point in this step; never evaluated as code.
+  sampleValue?: string;
   reference?: GuideRange;
 }
 export interface GuideFlow {
@@ -120,19 +122,20 @@ export const demoReviewFindings: GuideFinding[] = [
     lineEnd: 4,
     summary: 'SQL injection risk',
     description:
-      'userId is interpolated directly into SQL and passed to db.query. Untrusted input could alter the statement and access unintended data; bind it as a query parameter.',
+      '`userId` is interpolated directly into SQL and passed to `db.query`. Untrusted input could alter the statement and access unintended data; bind it as a query parameter.',
     severity: 'critical',
     category: 'security',
     steps: [
       {
-        description: 'userId flows from the parameter into the SQL string.',
+        description: '`userId` flows from the parameter into the SQL string.',
         links: [
           occurrence(3, 'userId', 'source'),
           occurrence(4, 'userId', 'source'),
         ],
       },
       {
-        description: 'The interpolated query reaches db.query for execution.',
+        description:
+          'The interpolated `query` reaches `db.query` for execution.',
         links: [
           occurrence(4, 'query', 'transform'),
           occurrence(6, 'query', 'transform', true),
@@ -142,7 +145,7 @@ export const demoReviewFindings: GuideFinding[] = [
       { description: 'Untrusted input could change the SQL statement.' },
       {
         description:
-          'Bind userId as a query parameter instead of interpolating it.',
+          'Bind `userId` as a query parameter instead of interpolating it.',
         links: [occurrence(4, 'userId', 'source')],
       },
     ],
@@ -154,12 +157,12 @@ export const demoReviewFindings: GuideFinding[] = [
     lineEnd: 9,
     summary: 'Missing user is unchecked',
     description:
-      'When the query returns no matches, users[0] is undefined. Callers may assume a user exists and fail later; handle the empty result explicitly.',
+      'When the query returns no matches, `users[0]` is `undefined`. Callers may assume a user exists and fail later; handle the empty result explicitly.',
     severity: 'warning',
     category: 'bug',
     steps: [
       {
-        description: 'users flows from the query result into the return.',
+        description: '`users` flows from the query result into the return.',
         links: [
           occurrence(6, 'users', 'source'),
           occurrence(9, 'users', 'sink'),
@@ -167,10 +170,10 @@ export const demoReviewFindings: GuideFinding[] = [
       },
       {
         description:
-          'If the adapter returns an empty array, users[0] is undefined.',
+          'If the adapter returns an empty array, `users[0]` is `undefined`.',
         links: [occurrence(9, 'users', 'sink')],
       },
-      { description: 'Return null or a domain error when no user matches.' },
+      { description: 'Return `null` or a domain error when no user matches.' },
       {
         description:
           'Make the missing-user outcome explicit in the return type.',
@@ -184,19 +187,19 @@ export const demoReviewFindings: GuideFinding[] = [
     lineEnd: 7,
     summary: 'User data may reach logs',
     description:
-      'The full query result is passed to console.log, and SELECT * may include personal or sensitive fields. Remove the log or record only approved, non-sensitive metadata.',
+      'The full query result is passed to `console.log`, and `SELECT *` may include personal or sensitive fields. Remove the log or record only approved, non-sensitive metadata.',
     severity: 'info',
     category: 'security',
     steps: [
       {
-        description: 'The full users result is passed to console.log.',
+        description: 'The full `users` result is passed to `console.log`.',
         links: [
           occurrence(6, 'users', 'source'),
           occurrence(7, 'users', 'source'),
           occurrence(7, 'console.log', 'sink'),
         ],
       },
-      { description: 'SELECT * may include personal or sensitive fields.' },
+      { description: '`SELECT *` may include personal or sensitive fields.' },
       { description: 'Check the returned fields and who can access the logs.' },
       {
         description:
@@ -231,35 +234,46 @@ const flow = (
     }),
   };
 };
-const node = (label: string, reference?: GuideRange): GuideFlowNode => ({
-  label,
-  reference,
-});
+const node = (
+  label: string,
+  reference?: GuideRange,
+  sampleValue?: string,
+): GuideFlowNode => ({ label, reference, sampleValue });
+
+const injectedId = JSON.stringify("' OR '1'='1");
+const injectedQuery = JSON.stringify(
+  "SELECT * FROM users WHERE id = '' OR '1'='1'",
+);
+const sampleUsers = '[{"id":"42","email":"alex@example.test"}]';
 
 const demoFlows: GuideFlow[][] = [
   [
     flow(
       'current',
-      node('userId parameter', occurrence(3, 'userId', 'source')),
-      node('SQL interpolation', occurrence(4, 'userId', 'source')),
-      node('query string', occurrence(4, 'query', 'transform')),
+      node('userId parameter', occurrence(3, 'userId', 'source'), injectedId),
+      node('SQL interpolation', occurrence(4, 'userId', 'source'), injectedId),
+      node('query string', occurrence(4, 'query', 'transform'), injectedQuery),
     ),
     flow(
       'current',
-      node('query string', occurrence(4, 'query', 'transform')),
-      node('query argument', occurrence(6, 'query', 'transform', true)),
+      node('query string', occurrence(4, 'query', 'transform'), injectedQuery),
+      node(
+        'query argument',
+        occurrence(6, 'query', 'transform', true),
+        injectedQuery,
+      ),
       node('db.query', occurrence(6, 'db.query', 'sink')),
     ),
     flow(
       'current',
-      node('untrusted userId', occurrence(4, 'userId', 'source')),
-      node('SQL text', occurrence(4, 'query', 'transform')),
+      node('untrusted userId', occurrence(4, 'userId', 'source'), injectedId),
+      node('SQL text', occurrence(4, 'query', 'transform'), injectedQuery),
       node('database execution', occurrence(6, 'db.query', 'sink')),
     ),
     flow(
       'proposed',
-      node('userId', occurrence(4, 'userId', 'source')),
-      node('bound parameter'),
+      node('userId', occurrence(4, 'userId', 'source'), injectedId),
+      node('bound parameter', undefined, `[${injectedId}]`),
       node('query executes with input treated as data'),
     ),
   ],
@@ -267,24 +281,24 @@ const demoFlows: GuideFlow[][] = [
     flow(
       'current',
       node('db.query', occurrence(6, 'db.query', 'source')),
-      node('users result', occurrence(6, 'users', 'transform')),
-      node('users[0] return', occurrence(9, 'users', 'sink')),
+      node('users result', occurrence(6, 'users', 'transform'), '[]'),
+      node('users[0] return', occurrence(9, 'users', 'sink'), '[]'),
     ),
     flow(
       'current',
-      node('empty users result', occurrence(9, 'users', 'source')),
-      node('users[0] lookup'),
-      node('undefined result'),
+      node('empty users result', occurrence(9, 'users', 'source'), '[]'),
+      node('users[0] lookup', undefined, 'undefined'),
+      node('undefined result', undefined, 'undefined'),
     ),
     flow(
       'proposed',
-      node('users result', occurrence(6, 'users', 'source')),
+      node('users result', occurrence(6, 'users', 'source'), '[]'),
       node('check for no matches'),
-      node('return null or a domain error'),
+      node('return null or a domain error', undefined, 'null'),
     ),
     flow(
       'proposed',
-      node('lookup result', occurrence(9, 'users', 'source')),
+      node('lookup result', occurrence(9, 'users', 'source'), '[]'),
       node('explicit User | null return type'),
       node('caller handles the missing user'),
     ),
@@ -292,25 +306,29 @@ const demoFlows: GuideFlow[][] = [
   [
     flow(
       'current',
-      node('users result', occurrence(6, 'users', 'source')),
-      node('users argument', occurrence(7, 'users', 'transform')),
+      node('users result', occurrence(6, 'users', 'source'), sampleUsers),
+      node('users argument', occurrence(7, 'users', 'transform'), sampleUsers),
       node('console.log', occurrence(7, 'console.log', 'sink')),
     ),
     flow(
       'current',
       node('SELECT *', occurrence(4, 'SELECT *', 'source')),
-      node('users result', occurrence(6, 'users', 'transform')),
-      node('potentially sensitive fields'),
+      node('users result', occurrence(6, 'users', 'transform'), sampleUsers),
+      node(
+        'potentially sensitive fields',
+        undefined,
+        '{"email":"alex@example.test"}',
+      ),
     ),
     flow(
       'current',
-      node('users argument', occurrence(7, 'users', 'source')),
+      node('users argument', occurrence(7, 'users', 'source'), sampleUsers),
       node('console.log', occurrence(7, 'console.log', 'sink')),
       node('application logs and their readers'),
     ),
     flow(
       'proposed',
-      node('users result', occurrence(6, 'users', 'source')),
+      node('users result', occurrence(6, 'users', 'source'), sampleUsers),
       node('approved, non-sensitive metadata'),
       node('redacted logger, if needed'),
     ),

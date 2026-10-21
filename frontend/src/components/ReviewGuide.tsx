@@ -1,24 +1,26 @@
-import { flowStyle, referenceKey, useFlowPalette } from '../flowColors';
 import { useLayoutEffect, useRef } from 'react';
 import type { GuideFinding } from '../demoReviewGuide';
 import { Icon } from './Icon';
+import { ReviewText } from './ReviewText';
 
 export function ReviewGuide({
   finding,
   activeStep,
-  isDemo,
   onStep,
-  onLine,
   onClose,
 }: {
   finding: GuideFinding;
   activeStep: number;
-  isDemo: boolean;
   onStep: (index: number) => void;
-  onLine: (line: number) => void;
   onClose: () => void;
 }) {
-  const palette = useFlowPalette();
+  const symbols = finding.steps.flatMap((step) => [
+    ...(step.flow?.nodes ?? []),
+    ...(step.links?.map((reference) => ({
+      label: reference.symbol,
+      reference,
+    })) ?? []),
+  ]);
   const content = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const container = content.current;
@@ -53,38 +55,59 @@ export function ReviewGuide({
   return (
     <section className="review-guide">
       <header className="guide-header">
-        <span className="guide-eyebrow">
-          {isDemo ? 'STATIC DEMO' : 'MOCK REVIEW'}
-        </span>
+        <h2 className="guide-title" title={finding.summary}>
+          <ReviewText text={finding.summary} nodes={symbols} />
+        </h2>
         <span
           className="guide-keyboard-hint"
+          aria-label="Left and right arrow keys: steps. Up and down arrow keys: bugs."
           title="Left/Right: steps. Up/Down: findings in code order."
         >
-          ← → steps · ↑ ↓ bugs
+          <span className="guide-key-pair" title="Previous / next step">
+            <kbd aria-label="Left arrow">
+              <Icon
+                name="arrow"
+                size={12}
+                style={{ transform: 'rotate(180deg)' }}
+              />
+            </kbd>
+            <kbd aria-label="Right arrow">
+              <Icon name="arrow" size={12} />
+            </kbd>
+            <span className="guide-key-label">Steps</span>
+          </span>
+          <span className="guide-key-pair" title="Previous / next bug">
+            <kbd aria-label="Up arrow">
+              <Icon
+                name="arrow"
+                size={12}
+                style={{ transform: 'rotate(-90deg)' }}
+              />
+            </kbd>
+            <kbd aria-label="Down arrow">
+              <Icon
+                name="arrow"
+                size={12}
+                style={{ transform: 'rotate(90deg)' }}
+              />
+            </kbd>
+            <span className="guide-key-label">Bugs</span>
+          </span>
         </span>
         <button onClick={onClose} aria-label="Close review guide">
           <Icon name="close" size={17} />
         </button>
       </header>
       <div ref={content} className="guide-content" key={finding.id}>
-        <h2
-          className="guide-summary"
-          aria-label={`${finding.severity} · ${finding.category} · ${finding.summary}`}
-        >
+        <div className="guide-summary">
           <span className={`guide-severity guide-severity-${finding.severity}`}>
             {finding.severity}
           </span>
           <span className="guide-category">{finding.category}</span>
-          <span className="guide-summary-text">{finding.summary}</span>
-        </h2>
-        <p className="guide-description">{finding.description}</p>
-        <button
-          className="guide-overview-button"
-          aria-pressed={activeStep === -1}
-          onClick={() => onStep(-1)}
-        >
-          Overview
-        </button>
+        </div>
+        <p className="guide-description">
+          <ReviewText text={finding.description} nodes={symbols} />
+        </p>
         <ol className="guide-explanation-steps" aria-label="Explanation steps">
           {finding.steps.map((step, index) => (
             <li
@@ -99,39 +122,13 @@ export function ReviewGuide({
                 <span className="guide-step-number" aria-hidden="true">
                   {index + 1}
                 </span>
-                <span>{step.description}</span>
+                <span>
+                  <ReviewText
+                    text={step.description}
+                    nodes={[...symbols, ...(step.flow?.nodes ?? [])]}
+                  />
+                </span>
               </button>
-              {step.links && step.links.length > 0 && (
-                <div
-                  className="guide-flow"
-                  aria-label={`Step ${index + 1} symbol links`}
-                >
-                  {step.links.map((range) => (
-                    <button
-                      key={`${range.line}-${range.startColumn}`}
-                      className={`guide-reference guide-role-${range.role} flow-color`}
-                      style={flowStyle(
-                        step.flow?.nodes.find(
-                          (node) =>
-                            node.reference &&
-                            referenceKey(node.reference) ===
-                              referenceKey(range),
-                        ) ?? { label: range.symbol, reference: range },
-                        palette,
-                      )}
-                      onClick={() => {
-                        onStep(index);
-                        onLine(range.line);
-                      }}
-                      aria-label={`Show ${range.symbol} on line ${range.line} (${range.role}), step ${index + 1}`}
-                      title={`Show ${range.symbol} on line ${range.line}`}
-                    >
-                      <code>{range.symbol}</code>
-                      <span>{range.role}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
             </li>
           ))}
         </ol>
@@ -139,11 +136,6 @@ export function ReviewGuide({
         <pre className="guide-fix">
           <code>{finding.fix}</code>
         </pre>
-        <p className="guide-footnote">
-          {isDemo
-            ? 'Prepared for this example. No live AI or automatic data-flow analysis.'
-            : 'Local mock findings. No code is sent to an AI service.'}
-        </p>
       </div>
     </section>
   );

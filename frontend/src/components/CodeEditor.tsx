@@ -9,6 +9,7 @@ import {
   type FlowColor,
 } from '../flowColors';
 import { DataFlowOverlay } from './DataFlowOverlay';
+import { CodeSamples } from './CodeSamples';
 import type { GuideRange, GuideFlowNode } from '../demoReviewGuide';
 import { languageLabels } from '../languages';
 import { Icon } from './Icon';
@@ -92,6 +93,7 @@ export function CodeEditor({
   linkedRanges = [],
   reviewFocus,
   flowNodes = [],
+  sampleNodes = [],
   flowConnections,
   focusedLine,
   onReviewLine,
@@ -106,6 +108,7 @@ export function CodeEditor({
   linkedRanges?: GuideRange[];
   reviewFocus?: { lineStart: number; lineEnd: number };
   flowNodes?: GuideFlowNode[];
+  sampleNodes?: GuideFlowNode[];
   flowConnections?: { from: number; to: number }[];
   focusedLine?: number;
   onReviewLine?: (line: number, anchor: ReviewAnchor) => void;
@@ -246,6 +249,7 @@ export function CodeEditor({
         {flowNodes.length > 0 && (
           <DataFlowOverlay nodes={flowNodes} connections={flowConnections} />
         )}
+        {sampleNodes.length > 0 && <CodeSamples nodes={sampleNodes} />}
         <textarea
           ref={textarea}
           aria-label="Code snippet"

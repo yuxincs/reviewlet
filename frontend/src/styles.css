@@ -1979,23 +1979,55 @@ textarea::placeholder {
   border-radius: inherit;
 }
 .guide-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 22px 22px 18px;
 }
-.guide-eyebrow {
-  font-size: 10px;
-  letter-spacing: 1.3px;
-  color: var(--muted);
+.guide-title {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .guide-keyboard-hint {
-  margin-left: auto;
-  margin-right: 12px;
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  gap: 7px;
   color: var(--muted);
+}
+.guide-key-pair {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.guide-key-label {
+  margin-left: 3px;
   font-size: 11px;
+  white-space: nowrap;
+}
+.guide-keyboard-hint kbd {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 20px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--subtle);
+  box-shadow: 0 1px 0 var(--line);
 }
 .guide-header > button {
+  grid-column: 3;
+  grid-row: 1;
   display: grid;
   place-items: center;
   padding: 6px;
@@ -2033,10 +2065,6 @@ textarea::placeholder {
 }
 .guide-category {
   color: var(--muted);
-}
-.guide-summary-text {
-  font-size: 15px;
-  color: var(--ink);
 }
 .guide-description {
   margin: 10px 0 16px;
@@ -2087,12 +2115,6 @@ textarea::placeholder {
 .guide-step-active .guide-step-number {
   color: var(--accent-text);
 }
-.guide-flow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 10px 12px 41px;
-}
 .guide-role-source {
   --guide-color: var(--accent-text);
 }
@@ -2101,26 +2123,6 @@ textarea::placeholder {
 }
 .guide-role-sink {
   --guide-color: var(--warning-text);
-}
-.guide-reference {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  padding: 9px 10px;
-  border-radius: 5px;
-  color: var(--guide-color);
-  background: color-mix(in srgb, var(--guide-color) 8%, transparent);
-}
-.guide-reference:hover {
-  background: color-mix(in srgb, var(--guide-color) 16%, transparent);
-}
-.guide-reference code {
-  font: 13px var(--mono);
-}
-.guide-reference > span {
-  font-size: 10px;
-  color: var(--muted);
 }
 .code-line,
 .line-numbers > span,
@@ -2168,11 +2170,6 @@ textarea::placeholder {
   font: 12px/1.8 var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.guide-content > .guide-footnote {
-  margin-top: 18px;
-  font-size: 11px;
-  color: var(--muted);
 }
 .review-popover {
   position: absolute;
@@ -2281,27 +2278,64 @@ textarea::placeholder {
 :root[data-theme='light'] .flow-color {
   --flow-color: hsl(var(--flow-hue) 65% 36%);
 }
-.guide-symbol.flow-color,
-.guide-reference.flow-color {
+.guide-symbol.flow-color {
   --guide-color: var(--flow-color);
 }
 .guide-symbol.flow-color {
   color: var(--flow-color);
 }
 
-.guide-overview-button {
-  margin: 0 0 14px;
-  padding: 6px 12px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--muted);
-  background: transparent;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
+.code-samples {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
 }
-.guide-overview-button[aria-pressed='true'],
-.guide-overview-button:hover {
-  color: var(--ink);
-  background: var(--accent-soft);
+.code-sample-row {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 25px;
+  max-width: calc(100% - 24px);
+  white-space: nowrap;
+  font: 11px/1.5 var(--mono);
+}
+.code-sample-label {
+  color: var(--muted);
+  font:
+    10px/1.5 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+.code-sample {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--flow-color);
+  background: var(--subtle);
+  border-radius: 4px;
+  padding: 1px 6px;
+  pointer-events: auto;
+}
+.code-sample-equals {
+  color: var(--muted);
+}
+.code-sample code {
+  color: var(--code);
+  font: inherit;
+}
+
+.guide-inline-code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--subtle);
+  color: var(--code);
+  font: 0.95em var(--mono);
+  overflow-wrap: anywhere;
+}
+.guide-inline-code .flow-color {
+  color: var(--flow-color);
 }

@@ -205,7 +205,7 @@ describe('snippet editor workspace', () => {
     ).toBeTruthy();
     expect(
       within(guide).getByRole('heading', {
-        name: 'critical · security · SQL injection risk',
+        name: 'SQL injection risk',
       }),
     ).toBeTruthy();
     expect(
@@ -288,7 +288,7 @@ describe('snippet editor workspace', () => {
     );
     fireEvent.click(
       within(guide).getByRole('button', {
-        name: 'Show users on line 9 (sink), step 1',
+        name: 'users flows from the query result into the return.',
       }),
     );
     expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
@@ -344,14 +344,27 @@ describe('snippet editor workspace', () => {
     const selected = () =>
       panel.querySelector('[aria-current="step"]')?.textContent;
     expect(selected()).toBeUndefined();
+    expect(
+      screen.queryByRole('group', { name: 'Illustrative values' }),
+    ).toBeNull();
     expect(document.querySelector('mark[data-symbol="db.query"]')).toBeTruthy();
     fireEvent.keyDown(panel, { key: 'ArrowLeft' });
     expect(selected()).toBeUndefined();
     fireEvent.keyDown(panel, { key: 'ArrowRight' });
     expect(selected()).toContain('userId flows');
+    const samples = screen.getByRole('group', {
+      name: 'Illustrative values',
+    });
+    expect(within(samples).getByText(/SELECT \* FROM users/)).toBeTruthy();
+    expect(panel.contains(samples)).toBe(false);
+    expect(samples.closest('.code-editor')).toBeTruthy();
+    expect(selected()).toContain('userId flows');
     expect(document.querySelector('mark[data-symbol="db.query"]')).toBeNull();
     fireEvent.keyDown(panel, { key: 'ArrowLeft' });
     expect(selected()).toBeUndefined();
+    expect(
+      screen.queryByRole('group', { name: 'Illustrative values' }),
+    ).toBeNull();
     expect(document.querySelector('mark[data-symbol="db.query"]')).toBeTruthy();
     fireEvent.keyDown(panel, { key: 'ArrowRight' });
     fireEvent.keyDown(panel, { key: 'ArrowRight' });
@@ -460,10 +473,12 @@ describe('snippet editor workspace', () => {
     expect(Math.min(difference, 360 - difference)).toBeGreaterThanOrEqual(
       39.99,
     );
-    const methodLink = within(panel).getByRole('button', {
-      name: 'Show db.query on line 6 (sink), step 2',
-    });
-    expect(methodLink.style.getPropertyValue('--flow-hue')).toBe(
+    const methodReference = Array.from(
+      panel.querySelectorAll<HTMLElement>(
+        '.guide-step-active .guide-inline-code .flow-color',
+      ),
+    ).find((reference) => reference.textContent === 'db.query');
+    expect(methodReference?.style.getPropertyValue('--flow-hue')).toBe(
       hue('db.query'),
     );
     expect(document.querySelector('.data-flow-overlay')).toBeTruthy();
@@ -473,14 +488,14 @@ describe('snippet editor workspace', () => {
       }),
     );
     expect(hue('userId')).toBe(inputHue);
-    fireEvent.click(within(panel).getByRole('button', { name: 'Overview' }));
+    for (let step = 0; step < 4; step++) {
+      fireEvent.keyDown(panel, { key: 'ArrowLeft' });
+    }
     expect(panel.querySelector('[aria-current="step"]')).toBeNull();
     expect(hue('db.query')).toBeTruthy();
     expect(
-      within(panel)
-        .getByRole('button', { name: 'Overview' })
-        .getAttribute('aria-pressed'),
-    ).toBe('true');
+      within(panel).queryByRole('button', { name: 'Overview' }),
+    ).toBeNull();
     expect(
       within(panel).queryByRole('group', { name: /data flow/ }),
     ).toBeNull();

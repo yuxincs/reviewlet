@@ -42,20 +42,17 @@ it('summarizes a finding range and supports steps with or without symbol links',
     fix: 'const value = calculate();',
   };
   const onStep = vi.fn();
-  const onLine = vi.fn();
   render(
     <ReviewGuide
       finding={finding}
       activeStep={0}
-      isDemo={false}
       onStep={onStep}
-      onLine={onLine}
       onClose={() => {}}
     />,
   );
   expect(
     screen.getByRole('heading', {
-      name: 'warning · performance · Repeated computation',
+      name: 'Repeated computation',
     }),
   ).toBeTruthy();
   const steps = within(
@@ -65,11 +62,11 @@ it('summarizes a finding range and supports steps with or without symbol links',
   expect(within(steps[0]).getAllByRole('button')).toHaveLength(1);
   fireEvent.click(
     screen.getByRole('button', {
-      name: 'Show value on line 3 (transform), step 2',
+      name: 'Move the invariant value outside the loop.',
     }),
   );
   expect(onStep).toHaveBeenCalledWith(1);
-  expect(onLine).toHaveBeenCalledWith(3);
+  expect(within(steps[1]).getAllByRole('button')).toHaveLength(1);
 });
 
 it('aligns each selected step to the top, including when it was already visible', () => {
@@ -112,9 +109,7 @@ it('aligns each selected step to the top, including when it was already visible'
     <ReviewGuide
       finding={finding}
       activeStep={index}
-      isDemo={false}
       onStep={() => {}}
-      onLine={() => {}}
       onClose={() => {}}
     />
   );
@@ -129,7 +124,5 @@ it('aligns each selected step to the top, including when it was already visible'
   rerender(view(-1));
   expect(scrollArea.scrollTop).toBe(0);
   expect(scrollArea.style.paddingBottom).toBe('');
-  expect(
-    container.querySelector('button[aria-pressed="true"]')?.textContent,
-  ).toBe('Overview');
+  expect(container.querySelector('[aria-current="step"]')).toBeNull();
 });

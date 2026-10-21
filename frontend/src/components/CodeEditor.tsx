@@ -7,7 +7,7 @@ import { Icon } from './Icon';
 
 const keywords =
   /^(import|from|export|async|await|function|const|let|return|if|else|null|undefined|def|func|string|error|type|interface)$/;
-function highlight(line: string, ranges: GuideRange[]) {
+function highlight(line: string, ranges: GuideRange[], dimContext: boolean) {
   let offset = 0;
   return line
     .split(/('[^']*'|"[^"]*"|`[^`]*`|\/\/.*$|#.*$|\b\w+\b)/g)
@@ -48,7 +48,12 @@ function highlight(line: string, ranges: GuideRange[]) {
                 {text}
               </mark>
             ) : (
-              text
+              <span
+                key={part}
+                className={dimContext ? 'guide-context' : undefined}
+              >
+                {text}
+              </span>
             );
           })}
         </span>
@@ -63,6 +68,7 @@ export function CodeEditor({
   onBlur,
   findings,
   linkedRanges = [],
+  reviewFocus,
   focusedLine,
   onReviewLine,
   onDismissReview,
@@ -74,6 +80,7 @@ export function CodeEditor({
   onBlur?: () => void;
   findings: Finding[];
   linkedRanges?: GuideRange[];
+  reviewFocus?: { lineStart: number; lineEnd: number };
   focusedLine?: number;
   onReviewLine?: (line: number, anchor: ReviewAnchor) => void;
   onDismissReview?: () => void;
@@ -83,6 +90,13 @@ export function CodeEditor({
   const highlightRef = useRef<HTMLPreElement>(null);
   const gutter = useRef<HTMLDivElement>(null);
   const lines = code.split('\n');
+  const isRelevantLine = (line: number) =>
+    !reviewFocus ||
+    (linkedRanges.length > 0
+      ? linkedRanges.some((range) => range.line === line)
+      : line >= reviewFocus.lineStart && line <= reviewFocus.lineEnd);
+  const dimmedClass = (line: number) =>
+    isRelevantLine(line) ? '' : 'guide-dimmed';
   const findingsDescription = useId();
   const lineFindings = new Map<
     number,
@@ -130,7 +144,7 @@ export function CodeEditor({
               <button
                 key={index}
                 type="button"
-                className={`finding-line-number finding-line-${lineFindings.get(index + 1)!.severity}`}
+                className={`finding-line-number finding-line-${lineFindings.get(index + 1)!.severity} ${dimmedClass(index + 1)}`}
                 data-review-trigger
                 disabled={disabled}
                 aria-label={`Show review for line ${index + 1}`}
@@ -149,11 +163,7 @@ export function CodeEditor({
             ) : (
               <span
                 aria-hidden="true"
-                className={
-                  lineFindings.has(index + 1)
-                    ? `finding-line-number finding-line-${lineFindings.get(index + 1)!.severity}`
-                    : ''
-                }
+                className={`${lineFindings.has(index + 1) ? `finding-line-number finding-line-${lineFindings.get(index + 1)!.severity}` : ''} ${dimmedClass(index + 1)}`}
                 title={lineFindings.get(index + 1)?.titles.join(' · ')}
                 key={index}
               >
@@ -166,12 +176,16 @@ export function CodeEditor({
           {lines.map((line, index) => (
             <span
               key={index}
-              className={`code-line ${lineFindings.has(index + 1) ? `finding-line finding-line-${lineFindings.get(index + 1)!.severity}` : ''} ${linkedRanges.some((range) => range.line === index + 1) ? 'guide-linked-line' : ''}`}
+              className={`code-line ${lineFindings.has(index + 1) ? `finding-line finding-line-${lineFindings.get(index + 1)!.severity}` : ''} ${linkedRanges.some((range) => range.line === index + 1) ? 'guide-linked-line' : ''} ${dimmedClass(index + 1)}`}
               data-line={index + 1}
             >
               {highlight(
                 line,
                 linkedRanges.filter((range) => range.line === index + 1),
+                Boolean(
+                  reviewFocus &&
+                  linkedRanges.some((range) => range.line === index + 1),
+                ),
               )}
               {'\n'}
             </span>

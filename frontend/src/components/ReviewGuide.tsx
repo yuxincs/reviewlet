@@ -1,66 +1,86 @@
-import type { GuideStep } from '../demoReviewGuide';
+import type { GuideFinding } from '../demoReviewGuide';
 import { Icon } from './Icon';
 
 export function ReviewGuide({
-  step,
+  finding,
+  activeStep,
   isDemo,
+  onStep,
   onLine,
   onClose,
 }: {
-  step: GuideStep;
+  finding: GuideFinding;
+  activeStep: number;
   isDemo: boolean;
+  onStep: (index: number) => void;
   onLine: (line: number) => void;
   onClose: () => void;
 }) {
   return (
     <section className="review-guide">
       <header className="guide-header">
-        <div>
-          <span className="guide-eyebrow">
-            {isDemo ? 'STATIC DEMO' : 'MOCK REVIEW'}
-          </span>
-          <h2>
-            Line {step.lineStart}
-            {step.lineEnd !== step.lineStart ? `–${step.lineEnd}` : ''}
-          </h2>
-        </div>
+        <span className="guide-eyebrow">
+          {isDemo ? 'STATIC DEMO' : 'MOCK REVIEW'}
+        </span>
         <button onClick={onClose} aria-label="Close review guide">
           <Icon name="close" size={17} />
         </button>
       </header>
-      <div className="guide-content" key={step.id}>
-        <span className={`severity severity-${step.severity}`}>
-          {step.severity === 'high'
-            ? 'High priority'
-            : step.severity === 'medium'
-              ? 'Medium priority'
-              : 'Suggestion'}
-        </span>
-        <h3>{step.title}</h3>
-        <p>{step.explanation}</p>
-        <div className="guide-flow" aria-label="Linked variable references">
-          {step.ranges.map((range) => (
-            <button
-              key={`${range.line}-${range.startColumn}`}
-              className={`guide-reference guide-role-${range.role}`}
-              onClick={() => onLine(range.line)}
-              aria-label={`Show ${range.symbol} on line ${range.line} (${range.role})`}
-              title={`Show ${range.symbol} on line ${range.line}`}
+      <div className="guide-content" key={finding.id}>
+        <h2
+          className="guide-summary"
+          aria-label={`${finding.severity} · ${finding.category} · ${finding.summary}`}
+        >
+          <span className={`guide-severity guide-severity-${finding.severity}`}>
+            {finding.severity}
+          </span>
+          <span className="guide-category">{finding.category}</span>
+          <span className="guide-summary-text">{finding.summary}</span>
+        </h2>
+        <ol className="guide-explanation-steps" aria-label="Explanation steps">
+          {finding.steps.map((step, index) => (
+            <li
+              key={index}
+              className={activeStep === index ? 'guide-step-active' : ''}
             >
-              <code>{range.symbol}</code>
-              <span>
-                L{range.line} · {range.role}
-              </span>
-            </button>
+              <button
+                className="guide-step-description"
+                aria-current={activeStep === index ? 'step' : undefined}
+                onClick={() => onStep(index)}
+              >
+                <span className="guide-step-number" aria-hidden="true">
+                  {index + 1}
+                </span>
+                <span>{step.description}</span>
+              </button>
+              {step.links && step.links.length > 0 && (
+                <div
+                  className="guide-flow"
+                  aria-label={`Step ${index + 1} symbol links`}
+                >
+                  {step.links.map((range) => (
+                    <button
+                      key={`${range.line}-${range.startColumn}`}
+                      className={`guide-reference guide-role-${range.role}`}
+                      onClick={() => {
+                        onStep(index);
+                        onLine(range.line);
+                      }}
+                      aria-label={`Show ${range.symbol} on line ${range.line} (${range.role}), step ${index + 1}`}
+                      title={`Show ${range.symbol} on line ${range.line}`}
+                    >
+                      <code>{range.symbol}</code>
+                      <span>{range.role}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </li>
           ))}
-        </div>
-        <div className="guide-check">
-          <Icon name="code" size={16} />
-          <p>{step.check}</p>
-        </div>
-        <h4>Suggested change</h4>
+        </ol>
+        <h3 className="guide-fix-heading">Suggested change</h3>
         <pre className="guide-fix">
-          <code>{step.fix}</code>
+          <code>{finding.fix}</code>
         </pre>
         <p className="guide-footnote">
           {isDemo

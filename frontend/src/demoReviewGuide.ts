@@ -1,5 +1,5 @@
 import { examples } from './api/examples';
-import type { Review, Severity } from './types/review';
+import type { Review, Severity, Finding } from './types/review';
 
 export interface GuideRange {
   line: number;
@@ -9,18 +9,23 @@ export interface GuideRange {
   role: 'source' | 'transform' | 'sink';
 }
 export interface GuideStep {
+  description: string;
+  links?: GuideRange[];
+}
+export type GuideSeverity = 'critical' | 'warning' | 'info';
+export type GuideCategory = 'bug' | 'style' | 'performance' | 'security';
+export interface GuideFinding {
   id: string;
-  title: string;
-  severity: Severity;
+  summary: string;
+  severity: GuideSeverity;
+  category: GuideCategory;
   lineStart: number;
   lineEnd: number;
-  explanation: string;
-  check: string;
+  steps: GuideStep[];
   fix: string;
-  ranges: GuideRange[];
 }
 
-// These locations belong only to the exact database example, not arbitrary code.
+// Locations are one-based, with an exclusive end column, and apply only to this exact example.
 function occurrence(
   line: number,
   symbol: string,
@@ -39,55 +44,91 @@ function occurrence(
   };
 }
 
-export const demoReviewSteps: GuideStep[] = [
+export const demoReviewFindings: GuideFinding[] = [
   {
     id: 'sql-input',
     lineStart: 4,
     lineEnd: 4,
-    title: 'Follow the input into SQL',
-    severity: 'high',
-    explanation:
-      'userId enters as a function parameter, becomes part of the query string, and reaches db.query. If the caller supplies untrusted input, it can change the SQL statement rather than just its ID value.',
-    check:
-      'Trace userId → query → db.query. The TypeScript string type does not make this value safe for SQL.',
-    fix: 'const users = await db.query(\n  "SELECT * FROM users WHERE id = $1",\n  [userId],\n);',
-    ranges: [
-      occurrence(3, 'userId', 'source'),
-      occurrence(4, 'userId', 'source'),
-      occurrence(4, 'query', 'transform'),
-      occurrence(6, 'query', 'transform', true),
-      occurrence(6, 'db.query', 'sink'),
+    summary: 'SQL injection risk',
+    severity: 'critical',
+    category: 'security',
+    steps: [
+      {
+        description: 'userId flows from the parameter into the SQL string.',
+        links: [
+          occurrence(3, 'userId', 'source'),
+          occurrence(4, 'userId', 'source'),
+        ],
+      },
+      {
+        description: 'The interpolated query reaches db.query for execution.',
+        links: [
+          occurrence(4, 'query', 'transform'),
+          occurrence(6, 'query', 'transform', true),
+          occurrence(6, 'db.query', 'sink'),
+        ],
+      },
+      { description: 'Untrusted input could change the SQL statement.' },
+      {
+        description:
+          'Bind userId as a query parameter instead of interpolating it.',
+        links: [occurrence(4, 'userId', 'source')],
+      },
     ],
+    fix: 'const users = await db.query(\n  "SELECT * FROM users WHERE id = $1",\n  [userId],\n);',
   },
   {
     id: 'empty-result',
     lineStart: 9,
     lineEnd: 9,
-    title: 'Check the empty-result path',
-    severity: 'medium',
-    explanation:
-      'The users value comes from the database and is indexed at the return. Assuming this adapter returns an array, no matching rows means users[0] is undefined. The snippet does not define how callers should handle that outcome.',
-    check:
-      'Follow users from the query result to the return. Decide whether a missing user should return null or raise a domain error.',
+    summary: 'Missing user is unchecked',
+    severity: 'warning',
+    category: 'bug',
+    steps: [
+      {
+        description: 'users flows from the query result into the return.',
+        links: [
+          occurrence(6, 'users', 'source'),
+          occurrence(9, 'users', 'sink'),
+        ],
+      },
+      {
+        description:
+          'If the adapter returns an empty array, users[0] is undefined.',
+        links: [occurrence(9, 'users', 'sink')],
+      },
+      { description: 'Return null or a domain error when no user matches.' },
+      {
+        description:
+          'Make the missing-user outcome explicit in the return type.',
+      },
+    ],
     fix: 'if (users.length === 0) {\n  return null;\n}\n\nreturn users[0];',
-    ranges: [occurrence(6, 'users', 'source'), occurrence(9, 'users', 'sink')],
   },
   {
     id: 'logging',
     lineStart: 7,
     lineEnd: 7,
-    title: 'Review what leaves through logs',
-    severity: 'low',
-    explanation:
-      'The same users result is passed to console.log. SELECT * may include personal or sensitive fields, so logging the complete result could expose them. The actual risk depends on the schema and logging environment.',
-    check:
-      'Follow users into console.log. Check which fields the query returns and where application logs are stored.',
-    fix: '// Remove the full-result debug log.\n// If needed, log only approved, non-sensitive metadata.',
-    ranges: [
-      occurrence(6, 'users', 'source'),
-      occurrence(7, 'users', 'source'),
-      occurrence(7, 'console.log', 'sink'),
+    summary: 'User data may reach logs',
+    severity: 'info',
+    category: 'security',
+    steps: [
+      {
+        description: 'The full users result is passed to console.log.',
+        links: [
+          occurrence(6, 'users', 'source'),
+          occurrence(7, 'users', 'source'),
+          occurrence(7, 'console.log', 'sink'),
+        ],
+      },
+      { description: 'SELECT * may include personal or sensitive fields.' },
+      { description: 'Check the returned fields and who can access the logs.' },
+      {
+        description:
+          'Remove the log or record only approved, non-sensitive metadata.',
+      },
     ],
+    fix: '// Remove the full-result debug log.\n// If needed, log only approved, non-sensitive metadata.',
   },
 ];
 
@@ -99,17 +140,33 @@ export function hasDemoReviewGuide(review: Review): boolean {
   );
 }
 
-export function getReviewSteps(review: Review): GuideStep[] {
-  if (hasDemoReviewGuide(review)) return demoReviewSteps;
+// Adapt the existing mock API vocabulary without changing saved snippet data.
+const severities: Record<Severity, GuideSeverity> = {
+  high: 'critical',
+  medium: 'warning',
+  low: 'info',
+};
+const categories: Record<Finding['category'], GuideCategory> = {
+  Security: 'security',
+  Reliability: 'bug',
+  Maintainability: 'style',
+};
+
+export function getReviewSteps(review: Review): GuideFinding[] {
+  if (hasDemoReviewGuide(review)) return demoReviewFindings;
   return review.findings.map((finding) => ({
     id: finding.id,
-    title: finding.title,
-    severity: finding.severity,
+    summary: finding.title,
+    severity: severities[finding.severity],
+    category: categories[finding.category],
     lineStart: finding.lineStart,
     lineEnd: finding.lineEnd,
-    explanation: finding.description,
-    check: finding.suggestion,
+    steps: [finding.description, finding.suggestion].flatMap((text) =>
+      text
+        .split(/(?<=[.!?])\s+(?=[A-Z])/u)
+        .filter(Boolean)
+        .map((description) => ({ description })),
+    ),
     fix: finding.suggestedCode,
-    ranges: [],
   }));
 }

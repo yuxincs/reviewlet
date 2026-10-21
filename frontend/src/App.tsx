@@ -34,6 +34,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const [guideAnchor, setGuideAnchor] = useState<ReviewAnchor>();
   const [guideStep, setGuideStep] = useState(0);
   const [guideLine, setGuideLine] = useState<number>();
+  const [explanationStep, setExplanationStep] = useState(0);
   const busy = loading || deletingId !== undefined || reviewing;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
   const guideSteps = activeSnippet ? getReviewSteps(activeSnippet) : [];
@@ -50,6 +51,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       return;
     }
     setGuideStep(index);
+    setExplanationStep(0);
     setGuideLine(undefined);
     setGuideAnchor(anchor);
     setGuideOpen(true);
@@ -365,7 +367,13 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                 language={activeSnippet.language}
                 disabled={busy}
                 findings={activeSnippet.findings}
-                linkedRanges={showGuide ? guideSteps[guideStep].ranges : []}
+                linkedRanges={
+                  showGuide
+                    ? (guideSteps[guideStep].steps[explanationStep]?.links ??
+                      [])
+                    : []
+                }
+                reviewFocus={showGuide ? guideSteps[guideStep] : undefined}
                 focusedLine={showGuide ? guideLine : undefined}
                 onReviewLine={openLineReview}
                 onDismissReview={closeGuide}
@@ -379,7 +387,14 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                   onClose={closeGuide}
                 >
                   <ReviewGuide
-                    step={guideSteps[guideStep]}
+                    finding={guideSteps[guideStep]}
+                    activeStep={explanationStep}
+                    onStep={(index) => {
+                      setExplanationStep(index);
+                      setGuideLine(
+                        guideSteps[guideStep].steps[index].links?.[0]?.line,
+                      );
+                    }}
                     isDemo={hasDemoReviewGuide(activeSnippet)}
                     onLine={setGuideLine}
                     onClose={closeGuide}

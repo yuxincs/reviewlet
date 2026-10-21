@@ -201,12 +201,35 @@ describe('snippet editor workspace', () => {
     );
     const guide = screen.getByRole('dialog', { name: 'Review guide' });
     expect(
-      within(guide).getByRole('heading', { name: 'Follow the input into SQL' }),
+      within(guide).getByRole('heading', { name: /SQL injection risk/ }),
+    ).toBeTruthy();
+    expect(
+      within(guide).getByRole('heading', {
+        name: 'critical · security · SQL injection risk',
+      }),
+    ).toBeTruthy();
+    expect(
+      within(guide).getByRole('list', { name: 'Explanation steps' }),
     ).toBeTruthy();
     expect(
       document.querySelectorAll('mark[data-symbol="userId"]'),
     ).toHaveLength(2);
+    fireEvent.click(
+      within(guide).getByRole('button', {
+        name: /The interpolated query reaches db.query/,
+      }),
+    );
     const queryLine = document.querySelector('[data-line="6"]')!;
+    expect(queryLine.classList.contains('guide-dimmed')).toBe(false);
+    expect(
+      document
+        .querySelector('[data-line="3"]')
+        ?.classList.contains('guide-dimmed'),
+    ).toBe(true);
+    expect(queryLine.querySelector('.guide-context')).toBeTruthy();
+    expect(
+      queryLine.querySelector('mark')?.closest('.guide-dimmed, .guide-context'),
+    ).toBeNull();
     expect(
       queryLine.querySelector('mark[data-symbol="query"]')?.textContent,
     ).toBe('query');
@@ -216,7 +239,32 @@ describe('snippet editor workspace', () => {
         .join(''),
     ).toBe('db.query');
     fireEvent.click(
-      within(guide).getByRole('heading', { name: 'Follow the input into SQL' }),
+      within(guide).getByRole('button', {
+        name: 'Untrusted input could change the SQL statement.',
+      }),
+    );
+    expect(document.querySelector('mark.guide-symbol')).toBeNull();
+    expect(
+      document
+        .querySelector('[data-line="4"]')
+        ?.classList.contains('guide-dimmed'),
+    ).toBe(false);
+    expect(queryLine.classList.contains('guide-dimmed')).toBe(true);
+    expect(
+      screen
+        .getByRole('button', { name: 'Show review for line 7' })
+        .classList.contains('guide-dimmed'),
+    ).toBe(true);
+    fireEvent.click(
+      within(guide).getByRole('button', {
+        name: 'userId flows from the parameter into the SQL string.',
+      }),
+    );
+    expect(
+      document.querySelectorAll('mark[data-symbol="userId"]'),
+    ).toHaveLength(2);
+    fireEvent.click(
+      within(guide).getByRole('heading', { name: /SQL injection risk/ }),
     );
     expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
     expect(
@@ -224,7 +272,7 @@ describe('snippet editor workspace', () => {
     ).toBeNull();
     expect(
       within(guide).queryByRole('heading', {
-        name: 'Check the empty-result path',
+        name: /Missing user is unchecked/,
       }),
     ).toBeNull();
     fireEvent.click(
@@ -232,7 +280,7 @@ describe('snippet editor workspace', () => {
     );
     expect(
       within(guide).getByRole('heading', {
-        name: 'Check the empty-result path',
+        name: /Missing user is unchecked/,
       }),
     ).toBeTruthy();
     expect(document.querySelectorAll('mark[data-symbol="users"]')).toHaveLength(
@@ -240,7 +288,7 @@ describe('snippet editor workspace', () => {
     );
     fireEvent.click(
       within(guide).getByRole('button', {
-        name: 'Show users on line 9 (sink)',
+        name: 'Show users on line 9 (sink), step 1',
       }),
     );
     expect(screen.getByRole('dialog', { name: 'Review guide' })).toBeTruthy();
@@ -249,22 +297,23 @@ describe('snippet editor workspace', () => {
     );
     expect(
       within(guide).getByRole('heading', {
-        name: 'Review what leaves through logs',
+        name: /User data may reach logs/,
       }),
     ).toBeTruthy();
     expect(
       within(guide).queryByRole('heading', {
-        name: 'Follow the input into SQL',
+        name: /SQL injection risk/,
       }),
     ).toBeNull();
     expect(
       within(guide).queryByRole('heading', {
-        name: 'Check the empty-result path',
+        name: /Missing user is unchecked/,
       }),
     ).toBeNull();
     fireEvent.click(screen.getByRole('textbox', { name: 'Snippet name' }));
     expect(screen.queryByRole('dialog', { name: 'Review guide' })).toBeNull();
     expect(document.querySelector('mark.guide-symbol')).toBeNull();
+    expect(document.querySelector('.guide-dimmed, .guide-context')).toBeNull();
     fireEvent.click(
       screen.getByRole('button', { name: 'Show review for line 9' }),
     );
@@ -295,12 +344,12 @@ describe('snippet editor workspace', () => {
     editor.style.lineHeight = '25px';
     fireEvent.click(editor, { clientX: 160, clientY: 112 });
     expect(
-      screen.getByRole('heading', { name: 'Follow the input into SQL' }),
+      screen.getByRole('heading', { name: /SQL injection risk/ }),
     ).toBeTruthy();
     editor.scrollTop = 75;
     fireEvent.click(editor, { clientX: 160, clientY: 112 });
     expect(
-      screen.getByRole('heading', { name: 'Review what leaves through logs' }),
+      screen.getByRole('heading', { name: /User data may reach logs/ }),
     ).toBeTruthy();
     editor.scrollTop = 0;
     fireEvent.click(editor, { clientX: 160, clientY: 61 });
@@ -325,7 +374,7 @@ describe('snippet editor workspace', () => {
     const guide = screen.getByRole('dialog', { name: 'Review guide' });
     expect(
       within(guide).getByRole('heading', {
-        name: 'Untrusted input can execute code',
+        name: /Untrusted input can execute code/,
       }),
     ).toBeTruthy();
     expect(

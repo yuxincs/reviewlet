@@ -1985,14 +1985,9 @@ textarea::placeholder {
   padding: 22px 22px 18px;
 }
 .guide-eyebrow {
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 1.3px;
   color: var(--muted);
-}
-.guide-header h2 {
-  font-size: 16px;
-  font-weight: 500;
-  margin-top: 6px;
 }
 .guide-header > button {
   display: grid;
@@ -2006,24 +2001,84 @@ textarea::placeholder {
   overflow-y: auto;
   padding: 22px;
 }
-.guide-content h3 {
-  font-size: 19px;
+.guide-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 7px;
+  font-size: 13px;
   font-weight: 500;
-  line-height: 1.4;
-  margin-top: 14px;
+  line-height: 1.8;
 }
-.guide-content > p,
-.guide-check p {
+.guide-severity,
+.guide-category {
   font-size: 12px;
+  text-transform: capitalize;
+}
+.guide-severity-critical {
+  color: var(--high-text);
+}
+.guide-severity-warning {
+  color: var(--warning-text);
+}
+.guide-severity-info {
+  color: var(--accent-text);
+}
+.guide-category {
+  color: var(--muted);
+}
+.guide-summary-text {
+  font-size: 15px;
+  color: var(--ink);
+}
+.guide-explanation-steps {
+  list-style: none;
+  padding: 0;
+  margin: 22px 0 0;
+}
+.guide-explanation-steps > li {
+  border-radius: 6px;
+  padding-bottom: 1px;
+  margin-top: 8px;
+  transition: background 160ms ease;
+}
+.guide-step-active {
+  background: var(--accent-soft);
+}
+.guide-step-description {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 11px 10px;
+  text-align: left;
   color: var(--body);
-  line-height: 1.85;
-  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.7;
+  border-radius: 6px;
+}
+.guide-step-description:hover {
+  background: var(--subtle);
+}
+.guide-step-number {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--subtle);
+  color: var(--muted);
+  font: 12px var(--mono);
+}
+.guide-step-active .guide-step-number {
+  color: var(--accent-text);
 }
 .guide-flow {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  margin: 20px 0;
+  gap: 6px;
+  margin: 0 10px 12px 41px;
 }
 .guide-role-source {
   --guide-color: var(--accent-text);
@@ -2048,11 +2103,29 @@ textarea::placeholder {
   background: color-mix(in srgb, var(--guide-color) 16%, transparent);
 }
 .guide-reference code {
-  font: 11px var(--mono);
+  font: 13px var(--mono);
 }
 .guide-reference > span {
-  font-size: 8px;
+  font-size: 10px;
   color: var(--muted);
+}
+.code-line,
+.line-numbers > span,
+.line-numbers > button,
+.guide-context {
+  transition: opacity 180ms ease;
+}
+.guide-dimmed,
+.guide-context {
+  opacity: 0.32;
+}
+@media (prefers-reduced-motion: reduce) {
+  .code-line,
+  .line-numbers > span,
+  .line-numbers > button,
+  .guide-context {
+    transition: none;
+  }
 }
 .guide-symbol {
   color: inherit;
@@ -2063,26 +2136,9 @@ textarea::placeholder {
 .guide-linked-line {
   box-shadow: inset 2px 0 var(--accent-text);
 }
-.guide-check {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 12px;
-  border-radius: 5px;
-  background: var(--accent-soft);
-}
-.guide-check > svg {
-  flex-shrink: 0;
-  margin-top: 3px;
-  color: var(--accent-text);
-}
-.guide-check p {
-  margin: 0;
-  font-size: 11px;
-}
-.guide-content h4 {
+.guide-fix-heading {
   margin-top: 22px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
 }
 .guide-fix {
@@ -2091,13 +2147,13 @@ textarea::placeholder {
   border-radius: 5px;
   background: var(--subtle);
   color: var(--code);
-  font: 10px/1.8 var(--mono);
+  font: 12px/1.8 var(--mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .guide-content > .guide-footnote {
   margin-top: 18px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .review-popover {

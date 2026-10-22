@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { getReviewStatus, reviewStatusLabels } from '../reviewStatus';
 import { languageLabels } from '../languages';
 import type { Review } from '../types/review';
 import { Icon } from './Icon';
@@ -28,6 +30,15 @@ export function SnippetSidebar({
   onCollapse: () => void;
   onToggle: () => void;
 }) {
+  const [languageFilter, setLanguageFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const filtered = languageFilter !== 'all' || statusFilter !== 'all';
+  const visibleReviews = reviews.filter(
+    (review) =>
+      (languageFilter === 'all' || review.language === languageFilter) &&
+      (statusFilter === 'all' ||
+        getReviewStatus(review, reviewingId) === statusFilter),
+  );
   return (
     <aside
       id="snippet-sidebar"
@@ -76,11 +87,52 @@ export function SnippetSidebar({
         </button>
         <div className="snippet-list-heading">
           <h2 className="sidebar-text">Your snippets</h2>
-          <span className="sidebar-text">{reviews.length}</span>
+          <span className="sidebar-text">
+            {filtered
+              ? `${visibleReviews.length} / ${reviews.length}`
+              : reviews.length}
+          </span>
+        </div>
+        <div className="snippet-filters" hidden={collapsed}>
+          <select
+            aria-label="Filter by language"
+            value={languageFilter}
+            onChange={(event) => setLanguageFilter(event.target.value)}
+          >
+            <option value="all">All languages</option>
+            {Object.entries(languageLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filter by review status"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+          >
+            <option value="all">All statuses</option>
+            {Object.entries(reviewStatusLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          {filtered && (
+            <button
+              type="button"
+              onClick={() => {
+                setLanguageFilter('all');
+                setStatusFilter('all');
+              }}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
         <nav aria-label="Your snippets" className="snippet-library">
           <ul>
-            {reviews.map((review) => (
+            {visibleReviews.map((review) => (
               <li
                 key={review.id}
                 className={`snippet-row ${reviewingId === review.id ? 'snippet-reviewing' : ''}`}
@@ -141,6 +193,11 @@ export function SnippetSidebar({
           {loading && (
             <p className="sidebar-text sidebar-empty">Loading snippets…</p>
           )}
+          {!loading && reviews.length > 0 && visibleReviews.length === 0 && (
+            <p className="sidebar-text sidebar-empty">
+              No snippets match your filters.
+            </p>
+          )}
           {!loading && reviews.length === 0 && (
             <p className="sidebar-text sidebar-empty">
               Your saved snippets will appear here.
@@ -150,10 +207,10 @@ export function SnippetSidebar({
       </div>
       <div
         className="sidebar-footer"
-        title="Personal snippets saved in this browser"
+        title="Personal snippets saved in your workspace"
       >
         <Icon name="shield" size={15} />
-        <span className="sidebar-text">Personal snippets · This browser</span>
+        <span className="sidebar-text">Personal snippets · Your workspace</span>
       </div>
     </aside>
   );

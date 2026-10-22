@@ -1,3 +1,4 @@
+import { getReviewStatus } from './reviewStatus';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { reviewApi } from './api/reviews';
 import { createFlowPalette, FlowColorContext } from './flowColors';
@@ -389,6 +390,11 @@ export default function App({
       ...patch,
       ...(codeChanged
         ? {
+            reviewStatus: (['reviewed', 'stale'].includes(
+              getReviewStatus(activeSnippet),
+            )
+              ? 'stale'
+              : 'draft') as Review['reviewStatus'],
             findings: [],
             summary: '',
             guideFindings: undefined,
@@ -502,6 +508,13 @@ export default function App({
       );
     } catch (reason) {
       if (controller.signal.aborted) return;
+      setSnippets((items) =>
+        items.map((item) =>
+          item.id === activeSnippet.id
+            ? { ...item, reviewStatus: 'failed' }
+            : item,
+        ),
+      );
       setError(
         reason instanceof Error
           ? reason.message

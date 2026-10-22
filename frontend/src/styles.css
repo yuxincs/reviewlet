@@ -2525,3 +2525,30 @@ textarea::placeholder {
   font-size: 12px;
   line-height: 1.6;
 }
+
+.snippet-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.snippet-filters[hidden] {
+  display: none;
+}
+.snippet-filters select {
+  flex: 1;
+  min-width: 0;
+  width: 45%;
+  padding: 7px 5px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--body);
+  font: inherit;
+  font-size: 12px;
+}
+.snippet-filters button {
+  padding: 4px 6px;
+  color: var(--accent-text);
+  font-size: 12px;
+}

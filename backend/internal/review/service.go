@@ -6,20 +6,26 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"sort"
 	"time"
 
 	"github.com/yuxincs/reviewlet/backend/internal/api"
+	"github.com/yuxincs/reviewlet/backend/internal/logging"
 )
 
 type Service struct {
+	logger   *slog.Logger
 	provider *provider
 	contract *api.Contract
 	timeout  time.Duration
 }
 
-func NewService(config Config) (*Service, error) {
+func NewService(config Config, logger *slog.Logger) (*Service, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
@@ -28,7 +34,9 @@ func NewService(config Config) (*Service, error) {
 		return nil, err
 	}
 	return &Service{
+		logger: logger,
 		provider: &provider{
+			logger: logger,
 			config: config, schema: contract.ModelJSON,
 			client: &http.Client{
 				Timeout:       config.Timeout,
@@ -51,6 +59,7 @@ func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRe
 	}
 	result, err := decodeStructuredReview(data, request.Body.Code, s.contract)
 	if err != nil {
+		logging.FromContext(ctx, s.logger).ErrorContext(ctx, "review_output_rejected", "stage", "validate_output", "error_code", asResponse(err).code)
 		return asResponse(err), nil
 	}
 	if ctx.Err() != nil {
@@ -75,7 +84,9 @@ func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRe
 	}
 	encoded, err := json.Marshal(response)
 	if err != nil || validateJSON(encoded, s.contract.Response) != nil {
+		logging.FromContext(ctx, s.logger).ErrorContext(ctx, "review_output_rejected", "stage", "validate_response", "error_code", api.ErrorResponseErrorCodeInternalError)
 		return internalError(), nil
 	}
+	logging.FromContext(ctx, s.logger).InfoContext(ctx, "review_completed", "review_id", response.Id, "finding_count", len(response.Findings))
 	return api.ReviewSnippet200JSONResponse(response), nil
 }

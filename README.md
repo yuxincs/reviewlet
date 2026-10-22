@@ -59,6 +59,7 @@ make backend-run
 | `REVIEW_TIMEOUT`               | `90s`                       | Positive duration limiting the provider request and review processing   |
 | `OPENAI_MAX_COMPLETION_TOKENS` | `16384`                     | Positive completion budget, including reasoning tokens where applicable |
 | `LISTEN_ADDR`                  | `:8080`                     | HTTP listen address                                                     |
+| `LOG_LEVEL`                    | `info`                      | Log threshold: `debug`, `info`, `warn`, or `error`                      |
 
 The server registers `POST /api/v1/review`. The frontend development server proxies `/api` requests here, though its review UI still uses mocks. To call the real backend directly (this sends the snippet to your configured provider):
 
@@ -73,6 +74,10 @@ The service makes one non-streaming request to `<OPENAI_BASE_URL>/chat/completio
 The review prompt lives in [`backend/internal/review/prompts/review.txt`](backend/internal/review/prompts/review.txt) and is embedded with `embed.FS`, along with the runtime schemas. The binary needs no prompt files or OpenAPI file at runtime. Source and context are supplied as untrusted JSON in a separate user message, with original code and numbered source lines. The prompt requests concise findings, explanation steps, optional symbol flows/sample values, and exact edits; it instructs the model to review text without executing it.
 
 Requests require JSON, have a 256 KiB body limit, and enforce the editor's 30,000 UTF-16-unit code limit. Errors use the contract's JSON envelope: 400 for invalid input, 413 for oversized bodies, 429 for provider rate limits, 502 for invalid reviews/provider requests, 503 for provider availability or authentication failures, and 504 for timeouts. Retry delays are normalized to integer seconds where supplied. Client cancellation stops the provider request. The server sets HTTP timeouts, disables response caching, and shuts down gracefully on SIGINT/SIGTERM. It does not log submitted code, model output, or provider error bodies.
+
+The backend writes structured JSON logs to stderr using Go's `slog`. Startup/shutdown events include the listen address, selected model, and review timeout. Access logs include the method, matched route pattern, status, duration, and response size. Provider logs include model, upstream status, duration, and a safe failure-stage label; completed reviews include the review ID and finding count. `LOG_LEVEL` defaults to `info`; 4xx requests log at `warn`, and 5xx requests at `error`.
+
+Each request receives a server-generated `X-Request-ID`. The same `request_id` appears in provider, review, and HTTP logs; JSON errors also return it as `error.requestId`. Submitted code/context, prompts, request headers, query strings, unmatched URL paths, API keys, model output, and provider error bodies are excluded from application logs.
 
 Run `make backend-test` for tests covering the real HTTP route against local fake providers, configuration, schema validation, source mappings, edits, and cancellation. Tests need no API key or external LLM calls.
 

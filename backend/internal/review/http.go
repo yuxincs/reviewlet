@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/yuxincs/reviewlet/backend/internal/api"
+	"github.com/yuxincs/reviewlet/backend/internal/logging"
 )
 
 const maxRequestBody = 256 << 10
@@ -22,9 +23,11 @@ func (s *Service) Handler() http.Handler {
 		RequestErrorHandlerFunc:  func(w http.ResponseWriter, _ *http.Request, _ error) { writeError(w, invalidRequest()) },
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, _ error) { writeError(w, internalError()) },
 	}))
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return logging.Middleware(s.logger, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/review" {
+			// Validation may return before the generated router sets the pattern.
+			r.Pattern = "POST /api/v1/review"
 			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if err != nil || mediaType != "application/json" {
 				writeError(w, invalidRequest())
@@ -48,7 +51,7 @@ func (s *Service) Handler() http.Handler {
 			r.Body = io.NopCloser(bytes.NewReader(data))
 		}
 		routes.ServeHTTP(w, r)
-	})
+	}))
 }
 
 func asResponse(err error) *reviewError {
@@ -63,6 +66,9 @@ func (e *reviewError) VisitReviewSnippetResponse(w http.ResponseWriter) error {
 	response := api.ErrorResponse{}
 	response.Error.Code = e.code
 	response.Error.Message = e.message
+	if requestID := w.Header().Get("X-Request-ID"); requestID != "" {
+		response.Error.RequestId = &requestID
+	}
 	w.Header().Set("Content-Type", "application/json")
 	if e.retryAfter > 0 {
 		w.Header().Set("Retry-After", strconv.Itoa(e.retryAfter))

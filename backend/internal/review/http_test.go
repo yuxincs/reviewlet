@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,10 +26,14 @@ func completion(content []byte) []byte {
 }
 
 func testService(t *testing.T, providerHandler http.HandlerFunc, timeout time.Duration) *Service {
+	return testServiceWithLogger(t, providerHandler, timeout, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+}
+
+func testServiceWithLogger(t *testing.T, providerHandler http.HandlerFunc, timeout time.Duration, logger *slog.Logger) *Service {
 	t.Helper()
 	upstream := httptest.NewServer(providerHandler)
 	t.Cleanup(upstream.Close)
-	service, err := NewService(Config{APIKey: "test-key", BaseURL: upstream.URL + "/v1", Model: "test-model", Timeout: timeout, MaxCompletionTokens: 4096})
+	service, err := NewService(Config{APIKey: "test-key", BaseURL: upstream.URL + "/v1", Model: "test-model", Timeout: timeout, MaxCompletionTokens: 4096}, logger)
 	if err != nil {
 		t.Fatal(err)
 	}

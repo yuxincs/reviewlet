@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -13,17 +14,37 @@ import (
 	"time"
 
 	"github.com/yuxincs/reviewlet/backend/internal/api"
+	"github.com/yuxincs/reviewlet/backend/internal/logging"
 )
 
 const maxProviderBody = 2 << 20
 
 type provider struct {
+	logger *slog.Logger
 	config Config
 	client *http.Client
 	schema string
 }
 
-func (p *provider) generate(ctx context.Context, request api.ReviewRequest) ([]byte, error) {
+func (p *provider) generate(ctx context.Context, request api.ReviewRequest) (output []byte, err error) {
+	started := time.Now()
+	logger := logging.FromContext(ctx, p.logger).With("model", p.config.Model)
+	logger.InfoContext(ctx, "provider_request_started", "max_completion_tokens", p.config.MaxCompletionTokens)
+	status := 0
+	stage := "build_request"
+	defer func() {
+		fields := []any{"duration_ms", float64(time.Since(started).Microseconds()) / 1000, "upstream_status", status}
+		if err != nil {
+			fields = append(fields, "stage", stage, "error_code", asResponse(err).code)
+			level := slog.LevelWarn
+			if asResponse(err).status >= 500 {
+				level = slog.LevelError
+			}
+			logger.Log(ctx, level, "provider_request_failed", fields...)
+		} else {
+			logger.InfoContext(ctx, "provider_request_completed", fields...)
+		}
+	}()
 	messages, err := reviewMessages(request)
 	if err != nil {
 		return nil, internalError()
@@ -63,14 +84,18 @@ func (p *provider) generate(ctx context.Context, request api.ReviewRequest) ([]b
 	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	stage = "send_request"
 	response, err := p.client.Do(req)
 	if err != nil {
 		return nil, transportError(err)
 	}
 	defer func() { _ = response.Body.Close() }()
+	status = response.StatusCode
+	stage = "http_status"
 	if response.StatusCode != http.StatusOK {
 		return nil, providerStatusError(response)
 	}
+	stage = "read_response"
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxProviderBody+1))
 	if err != nil {
 		return nil, transportError(err)
@@ -78,6 +103,7 @@ func (p *provider) generate(ctx context.Context, request api.ReviewRequest) ([]b
 	if len(data) > maxProviderBody {
 		return nil, failedReview()
 	}
+	stage = "decode_envelope"
 	var completion struct {
 		Choices []struct {
 			FinishReason string `json:"finish_reason"`
@@ -90,6 +116,7 @@ func (p *provider) generate(ctx context.Context, request api.ReviewRequest) ([]b
 	if err := json.Unmarshal(data, &completion); err != nil {
 		return nil, failedReview()
 	}
+	stage = "validate_completion"
 	if len(completion.Choices) != 1 {
 		return nil, failedReview()
 	}

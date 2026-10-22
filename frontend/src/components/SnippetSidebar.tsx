@@ -112,6 +112,16 @@ export function SnippetSidebar({
                       {reviewingId === review.id
                         ? 'Reviewing…'
                         : languageLabels[review.language]}
+                      {' · '}
+                      <time
+                        dateTime={review.createdAt}
+                        title={new Date(review.createdAt).toLocaleString()}
+                      >
+                        {new Date(review.createdAt).toLocaleDateString(
+                          undefined,
+                          { month: 'short', day: 'numeric', year: 'numeric' },
+                        )}
+                      </time>
                     </small>
                   </span>
                 </button>

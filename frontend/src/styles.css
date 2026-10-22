@@ -1159,6 +1159,9 @@ textarea::placeholder {
     opacity 160ms ease,
     visibility 160ms ease;
 }
+.snippet-language-icon {
+  flex-shrink: 0;
+}
 .snippet-item-text > span {
   font-size: 12px;
   color: var(--body);

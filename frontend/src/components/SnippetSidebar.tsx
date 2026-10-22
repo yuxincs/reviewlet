@@ -1,6 +1,7 @@
 import { languageLabels } from '../languages';
 import type { Review } from '../types/review';
 import { Icon } from './Icon';
+import { LanguageIcon } from './LanguageIcon';
 
 export function SnippetSidebar({
   reviews,
@@ -100,13 +101,11 @@ export function SnippetSidebar({
                       </svg>
                     </span>
                   )}
-                  <Icon
-                    name={reviewingId === review.id ? 'spinner' : 'file'}
-                    size={17}
-                    className={
-                      reviewingId === review.id ? 'review-spinner' : ''
-                    }
-                  />
+                  {reviewingId === review.id ? (
+                    <Icon name="spinner" size={18} className="review-spinner" />
+                  ) : (
+                    <LanguageIcon language={review.language} />
+                  )}
                   <span className="sidebar-text snippet-item-text">
                     <span>{review.title}</span>
                     <small>

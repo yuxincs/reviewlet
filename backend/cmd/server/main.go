@@ -21,7 +21,11 @@ func main() {
 }
 
 func run() error {
-	service, err := review.NewService()
+	config, err := review.LoadConfig()
+	if err != nil {
+		return err
+	}
+	service, err := review.NewService(config)
 	if err != nil {
 		return fmt.Errorf("initialize review service: %w", err)
 	}
@@ -32,7 +36,7 @@ func run() error {
 	server := &http.Server{
 		Addr: address, Handler: service.Handler(),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
-		WriteTimeout: 100 * time.Second, IdleTimeout: 60 * time.Second,
+		WriteTimeout: config.Timeout + 10*time.Second, IdleTimeout: 60 * time.Second,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

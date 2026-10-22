@@ -53,6 +53,23 @@ func validateRequest(data []byte, contract *api.Contract) error {
 	return nil
 }
 
+// decodeStructuredReview validates the provider format before normalizing nullable
+// optional fields to the API's omitted-field convention. Explicit [] is preserved.
+func decodeStructuredReview(data []byte, code string, contract *api.Contract) (modelReview, error) {
+	if err := validateJSON(data, contract.Structured); err != nil {
+		return modelReview{}, failedReview()
+	}
+	var result modelReview
+	if err := json.Unmarshal(data, &result); err != nil {
+		return modelReview{}, failedReview()
+	}
+	normalized, err := json.Marshal(result)
+	if err != nil {
+		return modelReview{}, failedReview()
+	}
+	return validateModel(normalized, code, contract)
+}
+
 func validateModel(data []byte, code string, contract *api.Contract) (modelReview, error) {
 	var result modelReview
 	if err := validateJSON(data, contract.Model); err != nil {

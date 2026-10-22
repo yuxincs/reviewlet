@@ -1,6 +1,6 @@
 # Reviewlet
 
-A snippet review application with an interactive React frontend and a mock API. The Go backend remains a skeleton; the review HTTP contract is defined in OpenAPI.
+A snippet review application with an interactive React frontend and a Go review API backed by an OpenAI-compatible LLM provider. The frontend still uses its local mock API; the HTTP contract is defined in OpenAPI.
 
 ```text
 frontend/   React + TypeScript, served with Vite
@@ -42,15 +42,39 @@ Review findings and discussion controls are hidden for now. The asynchronous moc
 
 ## Backend
 
-Requires Go 1.27 or newer. In a separate terminal:
+Requires Go 1.27 or newer. From the repository root, export your provider configuration and start the server:
 
 ```sh
+export OPENAI_API_KEY="your-api-key"
 make backend-run
 ```
 
-The server listens on port 8080 by default; set `LISTEN_ADDR` to override the listen address. `POST /api/v1/review` returns an explicitly labeled dummy review with an empty findings array; no AI provider or credentials are needed. HTTP header/read/write/idle timeouts are configured, and SIGINT/SIGTERM trigger graceful shutdown.
-The frontend development server proxies `/api` requests to this server.
-Run `make backend-test` to generate bindings and test the dummy endpoint.
+`OPENAI_API_KEY` is required; missing or invalid configuration stops startup. The default model is `gpt-6.1-sol`, chosen for code review quality and cost; set `OPENAI_MODEL` to override it. The server reads environment variables directly and does not load `.env` files. See [`backend/.env.example`](backend/.env.example) for configuration:
+
+| Variable                       | Default                     | Purpose                                                                 |
+| ------------------------------ | --------------------------- | ----------------------------------------------------------------------- |
+| `OPENAI_API_KEY`               | Required                    | Server-side provider credential                                         |
+| `OPENAI_MODEL`                 | `gpt-6.1-sol`               | Model supporting Chat Completions Structured Outputs                    |
+| `OPENAI_BASE_URL`              | `https://api.openai.com/v1` | OpenAI-compatible API base URL, including any version prefix            |
+| `REVIEW_TIMEOUT`               | `90s`                       | Positive duration limiting the provider request and review processing   |
+| `OPENAI_MAX_COMPLETION_TOKENS` | `16384`                     | Positive completion budget, including reasoning tokens where applicable |
+| `LISTEN_ADDR`                  | `:8080`                     | HTTP listen address                                                     |
+
+The server registers `POST /api/v1/review`. The frontend development server proxies `/api` requests here, though its review UI still uses mocks. To call the real backend directly (this sends the snippet to your configured provider):
+
+```sh
+curl http://localhost:8080/api/v1/review \
+  -H 'Content-Type: application/json' \
+  -d '{"code":"function first(items) { return items[0].name; }","language":"javascript","context":"items may be empty"}'
+```
+
+The service makes one non-streaming request to `<OPENAI_BASE_URL>/chat/completions` with `response_format.type: "json_schema"`, `json_schema.strict: true`, and `store: false`. It rejects incomplete, refused, oversized, or invalid provider output; it does not silently retry billable requests. [Structured Outputs constrains the response to the supplied schema](https://developers.openai.com/api/docs/guides/structured-outputs). The strict provider schema is derived from OpenAPI: all fields are required, optional features are nullable, and unsupported constraints remain enforced locally. Provider nulls for optional fields are omitted from the public response; explicit empty flow connections remain `[]`. The backend independently validates the provider shape and the complete API schema, then checks source references and edit semantics. Invalid or mismatched source ranges, UTF-16 symbol references, flow edges, duplicate identities, or inexact/oversized edits fail the entire review with a structured 502 error. The server assigns the review ID, UTC creation time, source hash, and finding order.
+
+The review prompt lives in [`backend/internal/review/prompts/review.txt`](backend/internal/review/prompts/review.txt) and is embedded with `embed.FS`, along with the runtime schemas. The binary needs no prompt files or OpenAPI file at runtime. Source and context are supplied as untrusted JSON in a separate user message, with original code and numbered source lines. The prompt requests concise findings, explanation steps, optional symbol flows/sample values, and exact edits; it instructs the model to review text without executing it.
+
+Requests require JSON, have a 256 KiB body limit, and enforce the editor's 30,000 UTF-16-unit code limit. Errors use the contract's JSON envelope: 400 for invalid input, 413 for oversized bodies, 429 for provider rate limits, 502 for invalid reviews/provider requests, 503 for provider availability or authentication failures, and 504 for timeouts. Retry delays are normalized to integer seconds where supplied. Client cancellation stops the provider request. The server sets HTTP timeouts, disables response caching, and shuts down gracefully on SIGINT/SIGTERM. It does not log submitted code, model output, or provider error bodies.
+
+Run `make backend-test` for tests covering the real HTTP route against local fake providers, configuration, schema validation, source mappings, edits, and cancellation. Tests need no API key or external LLM calls.
 
 Backend linting uses golangci-lint, pinned in the root `.golangciversion` file, with configuration in `backend/.golangci.yml`. The standard linter set includes `govet`, and formatting uses `gofmt` and `goimports`. From the repository root:
 
@@ -69,10 +93,10 @@ These targets automatically download the pinned binary to the ignored `backend/b
 
 Locations use one-based lines and UTF-16 columns, with exclusive end columns. The returned `codeHash` is SHA-256 of the exact submitted UTF-8 source, allowing clients to detect stale results. The contract also defines validation, rate-limit, and provider error responses. [`api/review-generation.md`](api/review-generation.md) provides guidance for generating examples and edits.
 
-This is the API design; the Go handler and frontend HTTP integration are not implemented yet. Generated bindings are ignored by Git and produced automatically:
+The Go handler implements this contract; frontend HTTP integration is still pending. Generated bindings are ignored by Git and produced automatically:
 
 - Go: `backend/internal/api/api.gen.go`, using `oapi-codegen` v2.8.0 (pinned as a Go tool in `backend/go.mod`). Includes models, standard `net/http` routes, and the typed `StrictServerInterface`.
-- Runtime validation: `backend/internal/api/schema.gen.json`, extracted from OpenAPI and embedded in the binary.
+- Runtime validation: `backend/internal/api/schema.gen.json`, extracted from the same OpenAPI schemas and embedded into the server.
 - TypeScript: `frontend/src/api/generated/`, using Hey API v0.99.0 (pinned in `frontend/package.json`). Includes models, a Fetch client, and the `reviewSnippet` endpoint function.
 
 After editing the specification, run from the repository root:
@@ -89,7 +113,7 @@ Install frontend dependencies first with `cd frontend && npm ci`. Go downloads i
 
 Frontend callers can import `reviewSnippet` and request/response types from `frontend/src/api/client.ts`. The client uses the page's origin, including Vite's `/api` proxy during development. Calls return typed `data` or `error` with the HTTP response; callers still need to handle network errors. The UI continues to use the mock API.
 
-The dummy service implements `api.StrictServerInterface` and uses generated routes for JSON binding and response serialization. Requests are validated against JSON schemas generated from OpenAPI, including body limits and UTF-16 code limits. Source-mapped findings and edits have dedicated validators; AI review generation will be added separately.
+The review service implements the generated `api.StrictServerInterface`; generated routes handle JSON binding and response serialization. An HTTP wrapper enforces body limits and request schema validation before binding.
 
 ## Checks
 
@@ -99,7 +123,7 @@ After installing frontend dependencies with `cd frontend && npm ci`, run from th
 make check
 ```
 
-This always generates API bindings and runs frontend linting, formatting checks, tests, type-checking, and a production build, plus golangci-lint, formatting checks, and `go test` for the backend. Backend tests exercise the dummy endpoint.
+This always generates API bindings and runs frontend linting, formatting checks, tests, type-checking, and a production build, plus golangci-lint, formatting checks, and `go test` for the backend.
 Use `make frontend-check` or `make backend-check` to run either component separately.
 
 Enable the pre-push hook once per checkout:

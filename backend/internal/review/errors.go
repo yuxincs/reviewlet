@@ -23,6 +23,14 @@ func failedReview() *reviewError {
 	return &reviewError{status: http.StatusBadGateway, code: api.ErrorResponseErrorCodeReviewFailed, message: "The provider did not return a valid review. Try again."}
 }
 
+func unavailableReview() *reviewError {
+	return &reviewError{status: http.StatusServiceUnavailable, code: api.ErrorResponseErrorCodeReviewUnavailable, message: "Reviews are temporarily unavailable. Try again later."}
+}
+
+func timeoutReview() *reviewError {
+	return &reviewError{status: http.StatusGatewayTimeout, code: api.ErrorResponseErrorCodeReviewTimeout, message: "The review timed out. Try again."}
+}
+
 func internalError() *reviewError {
 	return &reviewError{status: http.StatusInternalServerError, code: api.ErrorResponseErrorCodeInternalError, message: "The review could not be completed."}
 }

@@ -119,3 +119,82 @@ func TestRequestUTF16Boundary(t *testing.T) {
 		}
 	}
 }
+
+func TestStructuredOutputNormalization(t *testing.T) {
+	request, _, canonical := exampleReview(t)
+	contract, err := api.LoadContract()
+	if err != nil {
+		t.Fatal(err)
+	}
+	structured := structuredFixture(t, canonical)
+	for _, explicitEmpty := range []bool{false, true} {
+		t.Run(map[bool]string{false: "null connections", true: "empty connections"}[explicitEmpty], func(t *testing.T) {
+			var raw map[string]any
+			if err := json.Unmarshal(structured, &raw); err != nil {
+				t.Fatal(err)
+			}
+			finding := raw["findings"].([]any)[0].(map[string]any)
+			finding["edit"] = nil
+			step := finding["steps"].([]any)[0].(map[string]any)
+			step["links"] = nil
+			flow := step["flow"].(map[string]any)
+			flow["connections"] = nil
+			if explicitEmpty {
+				flow["connections"] = []any{}
+			}
+			node := flow["nodes"].([]any)[0].(map[string]any)
+			node["reference"], node["sampleValue"] = nil, nil
+			data, _ := json.Marshal(raw)
+			result, err := decodeStructuredReview(data, request.Code, contract)
+			if err != nil {
+				t.Fatal(err)
+			}
+			actual := result.Findings[0]
+			if actual.Edit != nil || actual.Steps[0].Links != nil || actual.Steps[0].Flow.Nodes[0].Reference != nil || actual.Steps[0].Flow.Nodes[0].SampleValue != nil {
+				t.Fatal("nullable optional fields were not normalized")
+			}
+			edges := actual.Steps[0].Flow.Connections
+			if explicitEmpty && (edges == nil || len(*edges) != 0) {
+				t.Fatal("explicit empty edges must remain distinct from default adjacency")
+			}
+			if !explicitEmpty && edges != nil {
+				t.Fatal("null edges must select default adjacency")
+			}
+			encoded, _ := json.Marshal(result)
+			if err := validateJSON(encoded, contract.Model); err != nil {
+				t.Fatal("normalized response violates API schema", err)
+			}
+		})
+	}
+}
+
+func TestStructuredOutputStillEnforcesAPIConstraints(t *testing.T) {
+	request, _, canonical := exampleReview(t)
+	contract, err := api.LoadContract()
+	if err != nil {
+		t.Fatal(err)
+	}
+	structured := structuredFixture(t, canonical)
+	tests := map[string]func(map[string]any){
+		"missing nullable field": func(f map[string]any) { delete(f, "edit") },
+		"required null":          func(f map[string]any) { f["fix"] = nil },
+		"oversized title":        func(f map[string]any) { f["summary"] = strings.Repeat("x", 161) },
+		"duplicate edges": func(f map[string]any) {
+			flow := f["steps"].([]any)[0].(map[string]any)["flow"].(map[string]any)
+			flow["connections"] = []any{map[string]any{"from": 0, "to": 1}, map[string]any{"from": 0, "to": 1}}
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			var raw map[string]any
+			if err := json.Unmarshal(structured, &raw); err != nil {
+				t.Fatal(err)
+			}
+			mutate(raw["findings"].([]any)[0].(map[string]any))
+			data, _ := json.Marshal(raw)
+			if _, err := decodeStructuredReview(data, request.Code, contract); err == nil {
+				t.Fatal("invalid provider review accepted")
+			}
+		})
+	}
+}

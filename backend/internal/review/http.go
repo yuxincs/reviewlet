@@ -51,6 +51,14 @@ func (s *Service) Handler() http.Handler {
 	})
 }
 
+func asResponse(err error) *reviewError {
+	var result *reviewError
+	if errors.As(err, &result) {
+		return result
+	}
+	return internalError()
+}
+
 func (e *reviewError) VisitReviewSnippetResponse(w http.ResponseWriter) error {
 	response := api.ErrorResponse{}
 	response.Error.Code = e.code

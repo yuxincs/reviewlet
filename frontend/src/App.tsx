@@ -41,6 +41,10 @@ export default function App({
   const pendingDetection = useRef<{ id: string; code: string } | undefined>(
     undefined,
   );
+  const editedVersions = useRef(new Map<string, number>());
+  const savedVersions = useRef(new Map<string, number>());
+  const savingVersions = useRef(new Map<string, number>());
+  const [editRevision, setEditRevision] = useState(0);
   const reviewInFlight = useRef(false);
   const reviewAbort = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => reviewAbort.current?.abort(), []);
@@ -291,10 +295,20 @@ export default function App({
   function persist(snippet: Review | undefined) {
     if (!snippet || deletedIds.current.has(snippet.id)) return;
     snippet = detectPendingLanguage(snippet);
+    const id = snippet.id;
+    const version = editedVersions.current.get(id) ?? 0;
+    if (savingVersions.current.get(id) === version) return;
+    savingVersions.current.set(id, version);
     void api
       .saveSnippet(snippet.id, {
         ...snippet,
         title: snippet.title.trim() || 'Untitled snippet',
+      })
+      .then(() => {
+        savedVersions.current.set(
+          id,
+          Math.max(savedVersions.current.get(id) ?? 0, version),
+        );
       })
       .catch((reason: unknown) => {
         setError(
@@ -302,6 +316,10 @@ export default function App({
             ? reason.message
             : 'Could not save your snippet.',
         );
+      })
+      .finally(() => {
+        if (savingVersions.current.get(id) === version)
+          savingVersions.current.delete(id);
       });
   }
 
@@ -341,6 +359,18 @@ export default function App({
     );
     return () => clearTimeout(timer);
   }, [activeId, activeSnippet?.code]);
+
+  const saveAfterIdle = useEffectEvent(() => {
+    if (busy || !activeSnippet) return;
+    const edited = editedVersions.current.get(activeSnippet.id) ?? 0;
+    const saved = savedVersions.current.get(activeSnippet.id) ?? 0;
+    if (edited > saved) persist(activeSnippet);
+  });
+  useEffect(() => {
+    if (!editRevision) return;
+    const timer = setTimeout(() => saveAfterIdle(), 5_000);
+    return () => clearTimeout(timer);
+  }, [editRevision, activeId]);
   function changeSnippet(
     patch: Partial<
       Pick<Review, 'title' | 'code' | 'language' | 'languageMode'>
@@ -366,6 +396,17 @@ export default function App({
           }
         : {}),
     };
+    if (
+      Object.entries(patch).some(
+        ([key, value]) => activeSnippet[key as keyof typeof patch] !== value,
+      )
+    ) {
+      editedVersions.current.set(
+        updated.id,
+        (editedVersions.current.get(updated.id) ?? 0) + 1,
+      );
+      setEditRevision((revision) => revision + 1);
+    }
     setSnippets((items) =>
       items.map((item) => (item.id === updated.id ? updated : item)),
     );
@@ -439,7 +480,12 @@ export default function App({
         ...detectPendingLanguage(activeSnippet),
         title: activeSnippet.title.trim() || 'Untitled snippet',
       };
+      const version = editedVersions.current.get(activeSnippet.id) ?? 0;
       await api.saveSnippet(activeSnippet.id, input);
+      savedVersions.current.set(
+        activeSnippet.id,
+        Math.max(savedVersions.current.get(activeSnippet.id) ?? 0, version),
+      );
       const reviewed = await api.reviewSnippet(
         activeSnippet.id,
         input,

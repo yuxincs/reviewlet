@@ -217,3 +217,74 @@ it('pulls only on startup and preserves an unsaved draft across API prop changes
     ),
   ).toHaveLength(1);
 });
+
+it('autosaves the latest draft after five idle seconds and restarts the timer for each edit', async () => {
+  const { editor, snippets, transport } = await openServerWorkspace();
+  fireEvent.change(editor, { target: { value: 'first draft' } });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(4_000);
+  });
+  expect(transport).toHaveBeenCalledTimes(1);
+  fireEvent.change(editor, { target: { value: 'latest draft' } });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(4_999);
+  });
+  expect(transport).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  expect(snippets[0].code).toBe('latest draft');
+  expect(transport).toHaveBeenCalledTimes(2);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(20_000);
+  });
+  expect(transport).toHaveBeenCalledTimes(2);
+});
+
+it('does not duplicate an idle save after blur already saved the edit', async () => {
+  const { editor, snippets, transport } = await openServerWorkspace();
+  fireEvent.change(editor, { target: { value: 'draft text' } });
+  fireEvent.blur(editor);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(snippets[0].code).toBe('draft text');
+  expect(transport).toHaveBeenCalledTimes(2);
+});
+
+it('keeps newer editor contents when an earlier autosave finishes late', async () => {
+  const { editor, snippets, transport } = await openServerWorkspace();
+  let finish!: (value: Response) => void;
+  let savedBody!: SaveSnippetRequest;
+  transport.mockImplementationOnce(async (input) => {
+    savedBody = (await (input as Request).json()) as SaveSnippetRequest;
+    return new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+  });
+  fireEvent.change(editor, { target: { value: 'earlier draft' } });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(savedBody.code).toBe('earlier draft');
+  fireEvent.change(editor, { target: { value: 'newer draft' } });
+  await act(async () => {
+    Object.assign(snippets[0], {
+      ...savedBody,
+      version: snippets[0].version + 1,
+    });
+    finish(Response.json(snippets[0]));
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect((editor as HTMLTextAreaElement).value).toBe('newer draft');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(snippets[0].code).toBe('newer draft');
+  expect(transport).toHaveBeenCalledTimes(3);
+  expect(
+    transport.mock.calls.filter(
+      ([request]) => (request as Request).method === 'GET',
+    ),
+  ).toHaveLength(1);
+});

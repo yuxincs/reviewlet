@@ -72,6 +72,7 @@ Locations use one-based lines and UTF-16 columns, with exclusive end columns. Th
 This is the API design; the Go handler and frontend HTTP integration are not implemented yet. Generated bindings are ignored by Git and produced automatically:
 
 - Go: `backend/internal/api/api.gen.go`, using `oapi-codegen` v2.8.0 (pinned as a Go tool in `backend/go.mod`). Includes models, standard `net/http` routes, and the typed `StrictServerInterface`.
+- Runtime validation: `backend/internal/api/schema.gen.json`, extracted from OpenAPI and embedded in the binary.
 - TypeScript: `frontend/src/api/generated/`, using Hey API v0.99.0 (pinned in `frontend/package.json`). Includes models, a Fetch client, and the `reviewSnippet` endpoint function.
 
 After editing the specification, run from the repository root:
@@ -88,7 +89,7 @@ Install frontend dependencies first with `cd frontend && npm ci`. Go downloads i
 
 Frontend callers can import `reviewSnippet` and request/response types from `frontend/src/api/client.ts`. The client uses the page's origin, including Vite's `/api` proxy during development. Calls return typed `data` or `error` with the HTTP response; callers still need to handle network errors. The UI continues to use the mock API.
 
-The dummy service implements `api.StrictServerInterface` and uses generated routes for JSON binding and response serialization. Full validation and AI review generation will be added separately.
+The dummy service implements `api.StrictServerInterface` and uses generated routes for JSON binding and response serialization. Requests are validated against JSON schemas generated from OpenAPI, including body limits and UTF-16 code limits. Source-mapped findings and edits have dedicated validators; AI review generation will be added separately.
 
 ## Checks
 

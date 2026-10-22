@@ -21,7 +21,10 @@ func main() {
 }
 
 func run() error {
-	service := review.NewService()
+	service, err := review.NewService()
+	if err != nil {
+		return fmt.Errorf("initialize review service: %w", err)
+	}
 	address := os.Getenv("LISTEN_ADDR")
 	if address == "" {
 		address = ":8080"

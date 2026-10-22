@@ -16,7 +16,7 @@ func TestDummyReview(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/review", strings.NewReader(`{"code":"const x = 1;","language":"javascript"}`))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
-	NewService().Handler().ServeHTTP(response, request)
+	dummyService(t).Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusOK {
 		t.Fatalf("%d: %s", response.Code, response.Body.String())
 	}
@@ -36,8 +36,9 @@ func TestDummyReview(t *testing.T) {
 func TestDummyReviewInvalidInput(t *testing.T) {
 	for _, body := range []string{"{", `{"code":""}`, `{"code":" \n\t"}`} {
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/review", strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
 		response := httptest.NewRecorder()
-		NewService().Handler().ServeHTTP(response, request)
+		dummyService(t).Handler().ServeHTTP(response, request)
 		var result api.ErrorResponse
 		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 			t.Fatal(err)
@@ -46,4 +47,13 @@ func TestDummyReviewInvalidInput(t *testing.T) {
 			t.Fatalf("%d: %s", response.Code, response.Body.String())
 		}
 	}
+}
+
+func dummyService(t *testing.T) *Service {
+	t.Helper()
+	service, err := NewService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return service
 }

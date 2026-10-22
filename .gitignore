@@ -11,3 +11,9 @@ dist/
 /frontend/src/api/generated/
 /backend/internal/api/api.gen.go
 /backend/internal/api/schema.gen.json
+
+# Local SQLite workspace, including WAL and shared-memory files.
+/backend/data/
+*.db
+*.db-wal
+*.db-shm

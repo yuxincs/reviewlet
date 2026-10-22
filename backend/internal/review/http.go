@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/yuxincs/reviewlet/backend/internal/api"
 	"github.com/yuxincs/reviewlet/backend/internal/logging"
@@ -25,26 +26,48 @@ func (s *Service) Handler() http.Handler {
 	}))
 	return logging.Middleware(s.logger, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/review" {
+		workspaceSchema := ""
+		if strings.HasPrefix(r.URL.Path, "/api/v1/snippets/") {
+			switch {
+			case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/review-state"):
+				workspaceSchema = "SaveReviewStateRequest"
+			case r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/findings/"):
+				workspaceSchema = "FindingDecisionRequest"
+			case r.Method == http.MethodPut:
+				workspaceSchema = "SaveSnippetRequest"
+			}
+		}
+		if workspaceSchema != "" || (r.Method == http.MethodPost && r.URL.Path == "/api/v1/review") {
 			// Validation may return before the generated router sets the pattern.
-			r.Pattern = "POST /api/v1/review"
+			if workspaceSchema == "" {
+				r.Pattern = "POST /api/v1/review"
+			}
 			mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if err != nil || mediaType != "application/json" {
 				writeError(w, invalidRequest())
 				return
 			}
-			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBody)
+			limit := int64(maxRequestBody)
+			if workspaceSchema != "" {
+				limit = 2 << 20
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 			data, err := io.ReadAll(r.Body)
 			if err != nil {
 				var limit *http.MaxBytesError
 				if errors.As(err, &limit) {
-					writeError(w, &reviewError{status: http.StatusRequestEntityTooLarge, code: api.ErrorResponseErrorCodePayloadTooLarge, message: "Request body exceeds 256 KiB."})
+					writeError(w, &reviewError{status: http.StatusRequestEntityTooLarge, code: api.ErrorResponseErrorCodePayloadTooLarge, message: "Request body exceeds the size limit."})
 				} else {
 					writeError(w, invalidRequest())
 				}
 				return
 			}
-			if err := validateRequest(data, s.contract); err != nil {
+			if workspaceSchema != "" {
+				if err := validateJSON(data, s.contract.Workspace[workspaceSchema]); err != nil {
+					writeError(w, invalidWorkspace())
+					return
+				}
+			} else if err := validateRequest(data, s.contract); err != nil {
 				writeError(w, invalidRequest())
 				return
 			}

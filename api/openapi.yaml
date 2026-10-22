@@ -4,7 +4,8 @@ info:
   version: 0.1.0
   description: |
     AI-powered review of an ad-hoc code snippet. POST /api/v1/review returns
-    a complete review synchronously; it does not create or update a saved snippet.
+    a complete review synchronously. An optional snippetId saves its status and result.
+    The snippet endpoints manage a single shared workspace persisted in SQLite.
     Finding locations, symbol references, and suggested edits refer to the exact
     submitted code. Acceptance, dismissal, local fix remapping, and discussion
     state are separate from this initial review response.
@@ -12,6 +13,8 @@ servers:
   - url: http://localhost:8080
     description: Local development server
 tags:
+  - name: Snippets
+    description: Single-user saved snippets and review decisions.
   - name: Reviews
     description: Analyze a code snippet and explain actionable findings.
 paths:
@@ -63,6 +66,10 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "413":
           $ref: "#/components/responses/PayloadTooLarge"
+        "404":
+          $ref: "#/components/responses/WorkspaceError"
+        "409":
+          $ref: "#/components/responses/WorkspaceError"
         "429":
           $ref: "#/components/responses/RateLimited"
         "500":
@@ -73,13 +80,216 @@ paths:
           $ref: "#/components/responses/ReviewUnavailable"
         "504":
           $ref: "#/components/responses/ReviewTimeout"
+  /api/v1/snippets:
+    get:
+      operationId: listSnippets
+      tags: [Snippets]
+      summary: List snippets in the single-user workspace
+      responses:
+        "200":
+          description: Snippets, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SavedSnippet"
+        default:
+          $ref: "#/components/responses/WorkspaceError"
+  /api/v1/snippets/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SnippetId"
+    put:
+      operationId: saveSnippet
+      tags: [Snippets]
+      summary: Create or update a snippet
+      description: |
+        Omit expectedVersion only when creating. Updates require the version
+        returned by the server; stale writes return 409. Code, language or context
+        changes clear the saved review. Blank drafts are allowed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveSnippetRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/SavedSnippetResponse"
+        default:
+          $ref: "#/components/responses/WorkspaceError"
+    delete:
+      operationId: deleteSnippet
+      tags: [Snippets]
+      summary: Delete a snippet and its review state
+      responses:
+        "204":
+          description: Deleted, including when the snippet was already absent.
+        default:
+          $ref: "#/components/responses/WorkspaceError"
+  /api/v1/snippets/{id}/review-state:
+    parameters:
+      - $ref: "#/components/parameters/SnippetId"
+    put:
+      operationId: saveReviewState
+      tags: [Snippets]
+      summary: Save an applied fix or undo with remapped findings
+      description: |
+        Atomically saves code, review and finding states only when expectedVersion
+        and expectedCode match. Analysis metadata still identifies the original
+        model review; supplied result locations describe the revised code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveReviewStateRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/SavedSnippetResponse"
+        default:
+          $ref: "#/components/responses/WorkspaceError"
+  /api/v1/snippets/{id}/findings/{findingId}:
+    parameters:
+      - $ref: "#/components/parameters/SnippetId"
+      - name: findingId
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+    patch:
+      operationId: updateFindingDecision
+      tags: [Snippets]
+      summary: Accept, dismiss or reopen a finding in the current review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FindingDecisionRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/SavedSnippetResponse"
+        default:
+          $ref: "#/components/responses/WorkspaceError"
 components:
+  parameters:
+    SnippetId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
   schemas:
+    SaveSnippetRequest:
+      type: object
+      additionalProperties: false
+      required: [title, language, code, context]
+      properties:
+        title: { type: string, maxLength: 160 }
+        language: { type: string, enum: [typescript, javascript, python, go] }
+        code: { type: string, maxLength: 30000 }
+        context: { type: string, maxLength: 4000 }
+        expectedVersion: { type: integer, minimum: 1 }
+        initialCreatedAt:
+          type: string
+          format: date-time
+          description: Original creation date for a browser-local snippet imported at creation.
+        initialReview:
+          description: Optional browser-local review imported only when creating a snippet.
+          $ref: "#/components/schemas/SavedReview"
+    SavedSnippet:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          title,
+          language,
+          code,
+          context,
+          createdAt,
+          updatedAt,
+          version,
+          reviewStatus,
+        ]
+      properties:
+        id:
+          type: string
+          description: UUID assigned when the snippet is created; immutable thereafter.
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        title: { type: string }
+        language: { type: string, enum: [typescript, javascript, python, go] }
+        code: { type: string }
+        context: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+        reviewStatus:
+          type: string
+          enum: [draft, reviewing, reviewed, stale, failed]
+        review:
+          $ref: "#/components/schemas/SavedReview"
+    SavedReview:
+      type: object
+      additionalProperties: false
+      required: [result, findingStates]
+      properties:
+        result:
+          $ref: "#/components/schemas/ReviewResponse"
+        findingStates:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SavedFindingState"
+    SavedFindingState:
+      type: object
+      additionalProperties: false
+      required: [status, guideState, comments]
+      properties:
+        status: { type: string, enum: [open, accepted, dismissed] }
+        guideState: { type: string, enum: [current, resolved, needs-recheck] }
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavedComment"
+    SavedComment:
+      type: object
+      additionalProperties: false
+      required: [id, author, body, createdAt]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 128 }
+        author: { type: string, enum: [you, reviewer] }
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        createdAt: { type: string, format: date-time }
+    SaveReviewStateRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, expectedCode, code, review]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        expectedCode: { type: string, maxLength: 30000 }
+        code: { type: string, maxLength: 30000 }
+        review:
+          $ref: "#/components/schemas/SavedReview"
+    FindingDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [reviewId, status]
+      properties:
+        reviewId: { type: string, minLength: 1, maxLength: 128 }
+        status: { type: string, enum: [open, accepted, dismissed] }
     ReviewRequest:
       type: object
       additionalProperties: false
       required: [code]
       properties:
+        snippetId:
+          type: string
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          description: Optional saved snippet whose source must match this request. Persists review progress and result; stale completions return 409.
         code:
           type: string
           minLength: 1
@@ -387,6 +597,8 @@ components:
               type: string
               enum:
                 [
+                  not_found,
+                  conflict,
                   invalid_request,
                   payload_too_large,
                   rate_limited,
@@ -417,6 +629,18 @@ components:
                     type: string
                     minLength: 1
   responses:
+    SavedSnippetResponse:
+      description: Updated saved snippet.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/SavedSnippet"
+    WorkspaceError:
+      description: Invalid input (400), missing snippet or finding (404), concurrent modification (409), oversized input (413), or storage failure (500).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
     BadRequest:
       description: Malformed JSON or invalid request fields, including blank or over-limit code.
       content:

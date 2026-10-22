@@ -14,6 +14,7 @@ import (
 
 	"github.com/yuxincs/reviewlet/backend/internal/logging"
 	"github.com/yuxincs/reviewlet/backend/internal/review"
+	"github.com/yuxincs/reviewlet/backend/internal/storage"
 )
 
 func main() {
@@ -37,6 +38,16 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("initialize review service: %w", err)
 	}
+	databasePath := os.Getenv("DATABASE_PATH")
+	if databasePath == "" {
+		databasePath = "data/reviewlet.db"
+	}
+	store, err := storage.Open(databasePath)
+	if err != nil {
+		return fmt.Errorf("open workspace database: %w", err)
+	}
+	defer func() { _ = store.Close() }()
+	service.UseStore(store)
 	address := os.Getenv("LISTEN_ADDR")
 	if address == "" {
 		address = ":8080"

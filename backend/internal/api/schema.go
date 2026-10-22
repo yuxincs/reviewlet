@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -19,6 +20,7 @@ type Contract struct {
 	Structured *jsonschema.Schema
 	Response   *jsonschema.Schema
 	ModelJSON  string
+	Workspace  map[string]*jsonschema.Schema
 }
 
 func LoadContract() (*Contract, error) {
@@ -36,11 +38,17 @@ func LoadContract() (*Contract, error) {
 	if err := compiler.AddResource(resource, document); err != nil {
 		return nil, err
 	}
-	contract := &Contract{}
+	contract := &Contract{Workspace: map[string]*jsonschema.Schema{}}
 	for name, destination := range map[string]**jsonschema.Schema{
 		"ReviewRequest": &contract.Request, "ModelReview": &contract.Model, "ReviewResponse": &contract.Response,
 	} {
 		*destination, err = compiler.Compile(resource + "#/components/schemas/" + name)
+		if err != nil {
+			return nil, fmt.Errorf("compile %s: %w", name, err)
+		}
+	}
+	for _, name := range []string{"SaveSnippetRequest", "SaveReviewStateRequest", "FindingDecisionRequest"} {
+		contract.Workspace[name], err = compiler.Compile(resource + "#/components/schemas/" + name)
 		if err != nil {
 			return nil, fmt.Errorf("compile %s: %w", name, err)
 		}
@@ -56,13 +64,28 @@ func LoadContract() (*Contract, error) {
 	}
 	schemas := root.Components.Schemas
 	definitions := map[string]any{}
-	for name, schema := range schemas {
-		switch name {
-		case "ReviewRequest", "ReviewResponse", "ErrorResponse", "ModelReview":
-			continue
+	// Follow references so unrelated workspace models never enter the LLM schema.
+	var collect func(any)
+	collect = func(value any) {
+		switch value := value.(type) {
+		case map[string]any:
+			if reference, ok := value["$ref"].(string); ok {
+				name := strings.TrimPrefix(reference, "#/components/schemas/")
+				if _, exists := definitions[name]; !exists {
+					definitions[name] = structuredSchema(schemas[name])
+					collect(schemas[name])
+				}
+			}
+			for _, child := range value {
+				collect(child)
+			}
+		case []any:
+			for _, child := range value {
+				collect(child)
+			}
 		}
-		definitions[name] = structuredSchema(schema)
 	}
+	collect(schemas["ModelReview"])
 	output := structuredSchema(schemas["ModelReview"])
 	output["$defs"] = definitions
 	modelJSON, err := json.Marshal(output)

@@ -13,9 +13,11 @@ import (
 
 	"github.com/yuxincs/reviewlet/backend/internal/api"
 	"github.com/yuxincs/reviewlet/backend/internal/logging"
+	"github.com/yuxincs/reviewlet/backend/internal/storage"
 )
 
 type Service struct {
+	store    *storage.Store
 	logger   *slog.Logger
 	provider *provider
 	contract *api.Contract
@@ -53,6 +55,23 @@ func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRe
 	if request.Body == nil {
 		return invalidRequest(), nil
 	}
+	var run string
+	if request.Body.SnippetId != nil {
+		if s.store == nil {
+			return internalError(), nil
+		}
+		var err error
+		run, err = s.store.BeginReview(ctx, *request.Body)
+		if err != nil {
+			return workspaceError(err), nil
+		}
+		defer func() {
+			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			// A completed or superseded run is untouched by token matching.
+			_ = s.store.FailReview(cleanup, *request.Body.SnippetId, run)
+		}()
+	}
 	data, err := s.provider.generate(ctx, *request.Body)
 	if err != nil {
 		return asResponse(err), nil
@@ -86,6 +105,11 @@ func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRe
 	if err != nil || validateJSON(encoded, s.contract.Response) != nil {
 		logging.FromContext(ctx, s.logger).ErrorContext(ctx, "review_output_rejected", "stage", "validate_response", "error_code", api.ErrorResponseErrorCodeInternalError)
 		return internalError(), nil
+	}
+	if request.Body.SnippetId != nil {
+		if err := s.store.CompleteReview(ctx, *request.Body.SnippetId, run, response); err != nil {
+			return workspaceError(err), nil
+		}
 	}
 	logging.FromContext(ctx, s.logger).InfoContext(ctx, "review_completed", "review_id", response.Id, "finding_count", len(response.Findings))
 	return api.ReviewSnippet200JSONResponse(response), nil

@@ -87,7 +87,7 @@ func TestUTF16ReferencesAndCRLFEdits(t *testing.T) {
 	model := modelReview{Language: "javascript", Summary: "Example.", Findings: []api.ReviewFinding{{
 		Id: "example", Summary: "Example finding", Description: "An example involving `x`.", Severity: api.Warning, Category: api.Bug,
 		LineStart: 1, LineEnd: 2, Fix: "", Steps: []api.ExplanationStep{{Description: "Follow `x`.", Links: &links,
-			Flow: &api.DataFlow{Kind: api.Current, Nodes: []api.FlowNode{{Label: "source", Reference: &first}, {Label: "sink", Reference: &second}}},
+			Flow: &api.DataFlow{Kind: api.DataFlowKindCurrent, Nodes: []api.FlowNode{{Label: "source", Reference: &first}, {Label: "sink", Reference: &second}}},
 		}}, Edit: &api.CodeEdit{StartLine: 1, EndLine: 1, Original: "😀\tconst x = 1;\r", Replacement: ""},
 	}}}
 	data, _ := json.Marshal(model)

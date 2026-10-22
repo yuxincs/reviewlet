@@ -1,5 +1,6 @@
 import type { ReviewInput } from '../types/review';
 
+// Stable inputs for deterministic UI tests; the live demo is in demo.ts.
 export const examples: Record<
   'database' | 'javascript' | 'python' | 'go',
   ReviewInput

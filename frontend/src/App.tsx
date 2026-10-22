@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { reviewApi } from './api/reviews';
 import { createFlowPalette, FlowColorContext } from './flowColors';
-import { examples } from './api/examples';
+import { demoSnippet } from './api/demo';
 import { getFindingOverview, getReviewSteps } from './demoReviewGuide';
 import { ReviewPopover, type ReviewAnchor } from './components/ReviewPopover';
 import { ReviewGuide } from './components/ReviewGuide';
@@ -528,7 +528,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
           ) : !activeSnippet ? (
             <WelcomePage
               onCreate={newSnippet}
-              onDemo={() => addSnippet(examples.database)}
+              onDemo={() => addSnippet(demoSnippet)}
             />
           ) : (
             <FlowColorContext.Provider value={flowPalette}>

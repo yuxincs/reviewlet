@@ -52,7 +52,7 @@ cd frontend
 npm run dev
 ```
 
-Vite forwards `/api` to `http://localhost:8080`; OpenAI credentials stay in the backend environment. Local data uses `reviewlet.snippets.v1`. On first run, snippets from the old `reviewlet.mock-reviews.v1` key are migrated with their code and titles intact; mock findings are cleared. **Try a demo** inserts a code snippet for review. Findings still come from the same backend as every other snippet; the UI does not require a fixed count. Existing saved snippets are preserved.
+Vite forwards `/api` to `http://localhost:8080`; OpenAI credentials stay in the backend environment. Local data uses `reviewlet.snippets.v1`. On first run, snippets from the old `reviewlet.mock-reviews.v1` key are migrated with their code and titles intact; mock findings are cleared. **Try a demo** inserts a checkout-quote endpoint with SKU normalization, a catalog lookup, quantity maps, line totals, coupon discounts, and shipping. Its intended issues span several operations: user-supplied SKUs flow into SQL, repeated quantities are overwritten before totals are calculated, and a whole-number coupon percentage is used as a multiplier before the final total is clamped. The context includes a concrete cart and its expected 6,875-cent total, giving the reviewer values to trace through the intermediate variables. Findings still come from the same backend as every other snippet; the UI does not require a fixed count. Existing saved snippets are preserved.
 
 ## Backend
 

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
 import { apiClient, type ReviewResponse } from './client';
 import { createReviewApi } from './reviews';
-import { examples } from './examples';
+import { demoSnippet } from './demo';
 import { createMockReviewApi } from './mock';
 import { getReviewSteps } from '../demoReviewGuide';
 import { applyReviewFix } from '../reviewRemapping';
@@ -136,7 +136,7 @@ describe('backend review adapter', () => {
 
   it('accepts an empty backend review of the demo without substituting static findings', async () => {
     const response = {
-      ...responseFor(examples.database.code),
+      ...responseFor(demoSnippet.code),
       findings: [],
       summary: 'No supported findings.',
     };
@@ -144,8 +144,8 @@ describe('backend review adapter', () => {
       fetch: vi.fn<typeof fetch>().mockResolvedValue(Response.json(response)),
     });
     const api = createReviewApi();
-    await api.saveSnippet('demo', examples.database);
-    const reviewed = await api.reviewSnippet('demo', examples.database);
+    await api.saveSnippet('demo', demoSnippet);
+    const reviewed = await api.reviewSnippet('demo', demoSnippet);
     expect(reviewed.findings).toEqual([]);
     expect(reviewed.guideFindings).toEqual([]);
     expect(getReviewSteps(reviewed)).toEqual([]);

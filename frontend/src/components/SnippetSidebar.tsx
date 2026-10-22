@@ -143,7 +143,11 @@ export function SnippetSidebar({
                   aria-label={review.title}
                   aria-busy={reviewingId === review.id}
                   aria-current={activeId === review.id ? 'page' : undefined}
-                  title={collapsed ? review.title : undefined}
+                  data-review-status={getReviewStatus(review, reviewingId)}
+                  aria-description={
+                    reviewStatusLabels[getReviewStatus(review, reviewingId)]
+                  }
+                  title={`${review.title} · ${reviewStatusLabels[getReviewStatus(review, reviewingId)]}`}
                   className={`snippet-item ${activeId === review.id ? 'selected' : ''}`}
                 >
                   {reviewingId === review.id && (

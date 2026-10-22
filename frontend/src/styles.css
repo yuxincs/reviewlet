@@ -2552,3 +2552,34 @@ textarea::placeholder {
   color: var(--accent-text);
   font-size: 12px;
 }
+
+.snippet-item[data-review-status] {
+  --snippet-tint: var(--muted);
+  background: color-mix(in srgb, var(--snippet-tint) 7%, var(--card));
+}
+.snippet-item[data-review-status='reviewing'] {
+  --snippet-tint: var(--accent-text);
+}
+.snippet-item[data-review-status='reviewed'] {
+  --snippet-tint: var(--success-text);
+}
+.snippet-item[data-review-status='stale'] {
+  --snippet-tint: var(--warning-text);
+}
+.snippet-item[data-review-status='failed'] {
+  --snippet-tint: var(--error-text);
+}
+.snippet-item[data-review-status]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--snippet-tint) 14%, var(--card));
+}
+.snippet-item[data-review-status].selected {
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--snippet-tint) 24%, var(--card)),
+    color-mix(in srgb, var(--snippet-tint) 13%, var(--card))
+  );
+  color: var(--snippet-tint);
+}
+.snippet-item[data-review-status].selected:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--snippet-tint) 25%, var(--card));
+}

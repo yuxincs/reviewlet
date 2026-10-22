@@ -10,6 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/yuxincs/reviewlet/backend/internal/review"
 )
 
 func main() {
@@ -19,12 +21,13 @@ func main() {
 }
 
 func run() error {
+	service := review.NewService()
 	address := os.Getenv("LISTEN_ADDR")
 	if address == "" {
 		address = ":8080"
 	}
 	server := &http.Server{
-		Addr: address, Handler: http.NewServeMux(),
+		Addr: address, Handler: service.Handler(),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
 		WriteTimeout: 100 * time.Second, IdleTimeout: 60 * time.Second,
 	}

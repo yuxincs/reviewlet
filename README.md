@@ -48,9 +48,9 @@ Requires Go 1.27 or newer. In a separate terminal:
 make backend-run
 ```
 
-The server listens on port 8080 by default; set `LISTEN_ADDR` to override the listen address. No routes are registered, so requests return 404. HTTP header/read/write/idle timeouts are configured, and SIGINT/SIGTERM trigger graceful shutdown.
+The server listens on port 8080 by default; set `LISTEN_ADDR` to override the listen address. `POST /api/v1/review` returns an explicitly labeled dummy review with an empty findings array; no AI provider or credentials are needed. HTTP header/read/write/idle timeouts are configured, and SIGINT/SIGTERM trigger graceful shutdown.
 The frontend development server proxies `/api` requests to this server.
-Run `make backend-test` to generate bindings and check compilation; no tests are defined yet.
+Run `make backend-test` to generate bindings and test the dummy endpoint.
 
 Backend linting uses golangci-lint, pinned in the root `.golangciversion` file, with configuration in `backend/.golangci.yml`. The standard linter set includes `govet`, and formatting uses `gofmt` and `goimports`. From the repository root:
 
@@ -88,7 +88,7 @@ Install frontend dependencies first with `cd frontend && npm ci`. Go downloads i
 
 Frontend callers can import `reviewSnippet` and request/response types from `frontend/src/api/client.ts`. The client uses the page's origin, including Vite's `/api` proxy during development. Calls return typed `data` or `error` with the HTTP response; callers still need to handle network errors. The UI continues to use the mock API.
 
-To connect the Go server later, implement `api.StrictServerInterface` and register `api.Handler(api.NewStrictHandler(service, nil))` on the HTTP server. Generated bindings decode JSON and serialize typed responses; request limits, schema/source validation, structured error handling, and the review service still need implementation. No endpoint is registered by this generation setup.
+The dummy service implements `api.StrictServerInterface` and uses generated routes for JSON binding and response serialization. Full validation and AI review generation will be added separately.
 
 ## Checks
 
@@ -98,7 +98,7 @@ After installing frontend dependencies with `cd frontend && npm ci`, run from th
 make check
 ```
 
-This always generates API bindings and runs frontend linting, formatting checks, tests, type-checking, and a production build, plus golangci-lint, formatting checks, and `go test` for the backend. Backend tests are not defined yet.
+This always generates API bindings and runs frontend linting, formatting checks, tests, type-checking, and a production build, plus golangci-lint, formatting checks, and `go test` for the backend. Backend tests exercise the dummy endpoint.
 Use `make frontend-check` or `make backend-check` to run either component separately.
 
 Enable the pre-push hook once per checkout:

@@ -38,5 +38,7 @@ export interface GuideFinding {
   steps: GuideStep[];
   fix: string;
   edit?: CodeEdit;
+  detailStatus?: 'pending' | 'ready' | 'failed';
+  detailError?: string;
   state?: 'current' | 'resolved' | 'needs-recheck';
 }

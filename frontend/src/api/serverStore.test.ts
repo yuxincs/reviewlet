@@ -212,3 +212,46 @@ it('uses the failure response version for subsequent saves without refreshing th
   await api.listReviews();
   expect(transport).toHaveBeenCalledTimes(4);
 });
+
+it('updates progressive review versions without polling and uses the final version for subsequent saves', async () => {
+  const transport = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json([saved()]));
+  apiClient.setConfig({ fetch: transport });
+  const store = createServerSnippetStore();
+  await store.listReviews();
+  const pending: ReviewResponse = {
+    ...result,
+    phase: 'detailing',
+    snippetVersion: 3,
+    findings: result.findings.map((finding) => ({
+      ...finding,
+      detailStatus: 'pending',
+    })),
+  };
+  const initial = await store.acceptReview('snippet', pending);
+  expect(initial.reviewStatus).toBe('reviewing');
+  expect(initial.guideFindings?.[0].detailStatus).toBe('pending');
+  const final: ReviewResponse = {
+    ...pending,
+    phase: 'complete',
+    snippetVersion: 4,
+    findings: result.findings.map((finding) => ({
+      ...finding,
+      detailStatus: 'ready',
+    })),
+  };
+  const complete = await store.acceptReview('snippet', final);
+  expect(complete.reviewStatus).toBe('reviewed');
+  expect(transport).toHaveBeenCalledOnce();
+  await expect(store.acceptReview('snippet', pending)).rejects.toThrow(
+    'changed',
+  );
+  transport.mockResolvedValueOnce(
+    Response.json({ ...reviewed(5), title: 'Renamed' }),
+  );
+  await store.saveSnippet('snippet', { ...input, title: 'Renamed' });
+  expect(await (transport.mock.calls[1][0] as Request).json()).toMatchObject({
+    expectedVersion: 4,
+  });
+});

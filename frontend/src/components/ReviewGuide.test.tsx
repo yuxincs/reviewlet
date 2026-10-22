@@ -152,3 +152,46 @@ it('shows a recheck notice instead of a stale suggested fix', () => {
   expect(screen.queryByText('old fix')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Preview fix' })).toBeNull();
 });
+
+it('shows an explicit empty state instead of a blank fix block', () => {
+  const finding: GuideFinding = {
+    id: 'empty',
+    summary: 'Check this',
+    description: 'An issue.',
+    severity: 'warning',
+    category: 'bug',
+    lineStart: 1,
+    lineEnd: 1,
+    steps: [],
+    fix: '',
+  };
+  const { container, rerender } = render(
+    <ReviewGuide
+      finding={finding}
+      activeStep={-1}
+      onStep={() => {}}
+      onClose={() => {}}
+    />,
+  );
+  expect(screen.getByText('No code change suggested.')).toBeTruthy();
+  expect(container.querySelector('.guide-fix')).toBeNull();
+  rerender(
+    <ReviewGuide
+      finding={{ ...finding, fix: 'const safe = value;' }}
+      activeStep={-1}
+      onStep={() => {}}
+      onClose={() => {}}
+    />,
+  );
+  expect(
+    screen.getByText('Illustrative code · no applicable edit provided.'),
+  ).toBeTruthy();
+  expect(container.querySelector('.guide-fix')?.textContent).toContain(
+    'const safe = value;',
+  );
+  const scrollArea = container.querySelector<HTMLElement>('.guide-content')!;
+  const scrollTo = vi.fn();
+  scrollArea.scrollTo = scrollTo;
+  fireEvent.click(screen.getByRole('button', { name: 'View suggestion' }));
+  expect(scrollTo).toHaveBeenCalledOnce();
+});

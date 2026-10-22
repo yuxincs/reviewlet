@@ -88,8 +88,7 @@ export default function App({
     undoFix?.appliedCode === activeSnippet?.code &&
     !busy,
   );
-  const showGuide =
-    guideOpen && guideSteps.length > 0 && !reviewing && !preview;
+  const showGuide = guideOpen && guideSteps.length > 0 && !preview;
   const activeFinding = guideSteps[guideStep];
   const activeStep = activeFinding
     ? explanationStep === -1
@@ -294,7 +293,12 @@ export default function App({
     if (window.matchMedia?.('(max-width: 700px)')?.matches) setSidebar(true);
   }
   function persist(snippet: Review | undefined) {
-    if (!snippet || deletedIds.current.has(snippet.id)) return;
+    if (
+      reviewInFlight.current ||
+      !snippet ||
+      deletedIds.current.has(snippet.id)
+    )
+      return;
     snippet = detectPendingLanguage(snippet);
     const id = snippet.id;
     const version = editedVersions.current.get(id) ?? 0;
@@ -377,7 +381,7 @@ export default function App({
       Pick<Review, 'title' | 'code' | 'language' | 'languageMode'>
     >,
   ) {
-    if (!activeSnippet) return undefined;
+    if (busy || !activeSnippet) return undefined;
     closeGuide();
     setReviewNotice('');
     const codeChanged =
@@ -481,6 +485,21 @@ export default function App({
     closeGuide();
     setReviewNotice('');
     setError('');
+    setSnippets((items) =>
+      items.map((item) =>
+        item.id === activeSnippet.id
+          ? {
+              ...item,
+              findings: [],
+              guideFindings: [],
+              reviewPhase: undefined,
+              reviewStatus: 'reviewing',
+            }
+          : item,
+      ),
+    );
+    setGuideStep(0);
+    setExplanationStep(-1);
     try {
       const input = {
         ...detectPendingLanguage(activeSnippet),
@@ -496,22 +515,60 @@ export default function App({
         activeSnippet.id,
         input,
         controller.signal,
+        (progress) => {
+          if (controller.signal.aborted) return;
+          setSnippets((items) =>
+            items.map((item) =>
+              item.id === progress.id && item.code === input.code
+                ? progress
+                : item,
+            ),
+          );
+          setReviewNotice(
+            `${progress.findings.length} findings found. Analyzing details…`,
+          );
+        },
       );
       setSnippets((items) =>
         items.map((item) => (item.id === reviewed.id ? reviewed : item)),
       );
-      setGuideStep(0);
-      closeGuide();
       const count = reviewed.findings.length;
+      const failedGuides = reviewed.findings.filter(
+        (finding) => finding.detailStatus === 'failed',
+      ).length;
       setReviewNotice(
-        `Review complete: ${count} ${count === 1 ? 'finding' : 'findings'}.`,
+        `Review complete: ${count} ${count === 1 ? 'finding' : 'findings'}.${failedGuides ? ` ${failedGuides} guides unavailable.` : ''}`,
       );
     } catch (reason) {
       if (controller.signal.aborted) return;
       setSnippets((items) =>
         items.map((item) =>
           item.id === activeSnippet.id
-            ? { ...item, reviewStatus: 'failed' }
+            ? {
+                ...item,
+                reviewStatus: 'failed',
+                reviewPhase: 'complete',
+                findings: item.findings.map((finding) =>
+                  finding.detailStatus === 'pending'
+                    ? {
+                        ...finding,
+                        detailStatus: 'failed',
+                        detailError:
+                          'Guide generation was interrupted. Review again to retry.',
+                      }
+                    : finding,
+                ),
+                guideFindings: item.guideFindings?.map((finding) =>
+                  finding.detailStatus === 'pending'
+                    ? {
+                        ...finding,
+                        detailStatus: 'failed',
+                        detailError:
+                          'Guide generation was interrupted. Review again to retry.',
+                      }
+                    : finding,
+                ),
+              }
             : item,
         ),
       );
@@ -742,7 +799,14 @@ export default function App({
                       : undefined
                   }
                   language={activeSnippet.language}
-                  disabled={busy}
+                  disabled={busy && !reviewing}
+                  reviewPhase={
+                    reviewing
+                      ? activeSnippet.reviewPhase
+                        ? 'detailing'
+                        : 'detecting'
+                      : undefined
+                  }
                   findings={activeSnippet.findings.filter(
                     (finding) => finding.status === 'open',
                   )}
@@ -794,6 +858,11 @@ export default function App({
                       setExplanationStep(-1);
                     }}
                     onNavigate={(direction) => {
+                      if (
+                        activeFinding?.detailStatus === 'pending' ||
+                        activeFinding?.detailStatus === 'failed'
+                      )
+                        return;
                       setExplanationStep((current) =>
                         Math.max(
                           -1,
@@ -807,9 +876,12 @@ export default function App({
                     onClose={closeGuide}
                   >
                     <ReviewGuide
+                      language={activeSnippet.language}
                       finding={guideSteps[guideStep]}
                       activeStep={explanationStep}
                       onPreview={
+                        !busy &&
+                        activeFinding?.detailStatus !== 'pending' &&
                         activeFinding?.edit &&
                         activeFinding.state !== 'needs-recheck'
                           ? previewFix
@@ -819,9 +891,13 @@ export default function App({
                         setExplanationStep(index);
                       }}
                       onClose={closeGuide}
-                      onDismiss={() => {
-                        void dismissFinding();
-                      }}
+                      onDismiss={
+                        busy
+                          ? undefined
+                          : () => {
+                              void dismissFinding();
+                            }
+                      }
                     />
                   </ReviewPopover>
                 )}

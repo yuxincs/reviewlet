@@ -134,6 +134,7 @@ it('submits the detected language when review starts before the debounce expires
     id,
     expect.objectContaining({ code: python, language: 'python' }),
     expect.any(AbortSignal),
+    expect.any(Function),
   );
 });
 

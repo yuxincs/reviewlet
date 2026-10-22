@@ -23,6 +23,7 @@ export function attachReview(snippet: Review, result: ReviewResponse): Review {
   return {
     ...snippet,
     summary: result.summary,
+    reviewPhase: result.phase,
     analysis: {
       id: result.id,
       createdAt: result.createdAt,
@@ -37,6 +38,8 @@ export function attachReview(snippet: Review, result: ReviewResponse): Review {
       lineStart: finding.lineStart,
       lineEnd: finding.lineEnd,
       description: finding.description,
+      detailStatus: finding.detailStatus,
+      detailError: finding.detailError,
       suggestion: finding.steps.at(-1)?.description ?? '',
       suggestedCode: finding.fix,
       status: 'open',

@@ -195,3 +195,101 @@ it('dismisses a finding from the guide and keeps the decision after reloading th
   const [saved] = await createReviewApi(localStorage).listReviews();
   expect(saved.findings[0].status).toBe('dismissed');
 });
+
+it('shows streamed findings immediately and keeps the selected panel open as its guide becomes ready', async () => {
+  const pending: ReviewResponse = {
+    id: 'progressive-review',
+    createdAt: '2026-10-22T00:00:00Z',
+    codeHash: createHash('sha256').update(snippet.code).digest('hex'),
+    language: 'typescript',
+    summary: 'Found 1 finding.',
+    phase: 'detailing',
+    findings: [
+      {
+        id: 'f1',
+        summary: 'Empty input',
+        description: 'Preparing details.',
+        severity: 'warning',
+        category: 'bug',
+        lineStart: 2,
+        lineEnd: 2,
+        steps: [{ description: 'Placeholder step.' }],
+        fix: '',
+        detailStatus: 'pending',
+      },
+    ],
+  };
+  let stream!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      stream = controller;
+    },
+  });
+  const transport = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(
+      new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }),
+    );
+  apiClient.setConfig({ fetch: transport });
+  const api = createReviewApi(localStorage);
+  await api.saveSnippet('streaming-snippet', snippet);
+  const { container } = render(<App api={api} />);
+  await screen.findByRole('button', { name: snippet.title });
+  fireEvent.click(screen.getByRole('button', { name: 'Review snippet' }));
+  await screen.findByText('Scanning for issues…');
+  const send = (event: string, result: ReviewResponse) =>
+    stream.enqueue(
+      new TextEncoder().encode(
+        `event: ${event}\ndata: ${JSON.stringify(result)}\n\n`,
+      ),
+    );
+  send('progress', pending);
+  const line = await screen.findByRole<HTMLButtonElement>('button', {
+    name: 'Show review for line 2',
+  });
+  expect(line.disabled).toBe(false);
+  expect(container.querySelectorAll('.pending-finding-range')).toHaveLength(1);
+  expect(
+    screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+      .readOnly,
+  ).toBe(true);
+  fireEvent.click(line);
+  const guide = screen.getByRole('dialog', { name: 'Review guide' });
+  expect(within(guide).getByText('Analyzing details…')).toBeTruthy();
+  expect(within(guide).queryByText('Placeholder step.')).toBeNull();
+  const ready: ReviewResponse = {
+    ...pending,
+    findings: [
+      {
+        ...pending.findings[0],
+        detailStatus: 'ready',
+        description: 'The first item is undefined for an empty array.',
+        steps: [
+          { description: 'Guard the first item before reading its name.' },
+        ],
+      },
+    ],
+  };
+  send('progress', ready);
+  await within(guide).findByText(
+    'Guard the first item before reading its name.',
+  );
+  expect(container.querySelectorAll('.pending-finding-range')).toHaveLength(0);
+  expect(screen.getByRole('button', { name: 'Reviewing…' })).toBeTruthy();
+  expect(
+    within(guide).queryByRole('button', { name: 'Dismiss finding' }),
+  ).toBeNull();
+  send('complete', { ...ready, phase: 'complete' });
+  await screen.findByRole('button', { name: 'Review snippet' });
+  expect(
+    within(guide).getByRole('button', { name: 'Dismiss finding' }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+      .readOnly,
+  ).toBe(false);
+  expect(
+    (await createReviewApi(localStorage).listReviews())[0].guideFindings?.[0]
+      .detailStatus,
+  ).toBe('ready');
+});

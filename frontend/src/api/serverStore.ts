@@ -32,6 +32,7 @@ export function fromSavedSnippet(snippet: SavedSnippet): Review {
   };
   if (!snippet.review) return base;
   const review = attachReview(base, snippet.review.result);
+
   for (const finding of review.findings) {
     const state = snippet.review.findingStates[finding.id];
     if (!state) continue;
@@ -67,6 +68,8 @@ function wireFinding(
     lineStart: finding.lineStart,
     lineEnd: finding.lineEnd,
     fix: finding.fix,
+    ...(finding.detailStatus ? { detailStatus: finding.detailStatus } : {}),
+    ...(finding.detailError ? { detailError: finding.detailError } : {}),
     ...(finding.edit ? { edit: finding.edit } : {}),
     steps: finding.steps.map((step) => ({
       description: step.description,
@@ -208,7 +211,21 @@ export function createServerSnippetStore(
           migrated = true;
         }
         cache.clear();
-        const reviews = snippets.map(remember);
+        const reviews = snippets.map((snippet) => {
+          // A POST stream cannot be resumed after reload. The backend cancels
+          // the old run; keep any completed guides visible in this session.
+          if (snippet.reviewStatus === 'reviewing' && snippet.review) {
+            snippet.reviewStatus = 'failed';
+            snippet.review.result.phase = 'complete';
+            for (const finding of snippet.review.result.findings)
+              if (finding.detailStatus === 'pending') {
+                finding.detailStatus = 'failed';
+                finding.detailError =
+                  'The review session was interrupted. Review again to finish this guide.';
+              }
+          }
+          return remember(snippet);
+        });
         loaded = true;
         return reviews;
       }),
@@ -220,11 +237,20 @@ export function createServerSnippetStore(
           throw new Error(
             'The backend did not return the saved snippet version. Restart the backend and reload.',
           );
+        if (result.snippetVersion <= known.version)
+          throw new Error('The snippet changed while it was being reviewed.');
         return Promise.resolve(
           remember({
             ...known,
             version: result.snippetVersion,
-            reviewStatus: 'reviewed',
+            reviewStatus:
+              result.phase === 'detailing'
+                ? 'reviewing'
+                : result.findings.some(
+                      (finding) => finding.detailStatus === 'failed',
+                    )
+                  ? 'failed'
+                  : 'reviewed',
             updatedAt: result.createdAt,
             review: {
               result,
@@ -241,8 +267,23 @@ export function createServerSnippetStore(
     failReview: (id, version) =>
       enqueue(async () => {
         const known = cache.get(id);
-        if (known && version)
-          cache.set(id, { ...known, version, reviewStatus: 'failed' });
+        if (known && (!version || version >= known.version)) {
+          const result = known.review?.result;
+          if (result) {
+            result.phase = 'complete';
+            for (const finding of result.findings)
+              if (finding.detailStatus === 'pending') {
+                finding.detailStatus = 'failed';
+                finding.detailError =
+                  'Guide generation was interrupted. Review again to retry.';
+              }
+          }
+          cache.set(id, {
+            ...known,
+            version: version ?? known.version,
+            reviewStatus: 'failed',
+          });
+        }
         return Promise.resolve();
       }),
     saveSnippet: (id, input) =>

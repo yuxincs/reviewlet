@@ -2,6 +2,9 @@ import { useLayoutEffect, useRef } from 'react';
 import type { GuideFinding } from '../demoReviewGuide';
 import { Icon } from './Icon';
 import { ReviewText } from './ReviewText';
+import { CodeHighlight } from './CodeHighlight';
+import { useSyntaxTokens } from '../syntax/useSyntaxTokens';
+import type { Language } from '../types/review';
 
 export function ReviewGuide({
   finding,
@@ -10,6 +13,7 @@ export function ReviewGuide({
   onClose,
   onPreview,
   onDismiss,
+  language = 'unknown',
 }: {
   finding: GuideFinding;
   activeStep: number;
@@ -17,7 +21,18 @@ export function ReviewGuide({
   onClose: () => void;
   onPreview?: () => void;
   onDismiss?: () => void;
+  language?: Language;
 }) {
+  const suggestedCode = finding.edit?.replacement ?? finding.fix;
+  const syntax = useSyntaxTokens(suggestedCode, language);
+  const awaitingDetails =
+    finding.detailStatus === 'pending' || finding.detailStatus === 'failed';
+  const hasIllustrativeFix =
+    !awaitingDetails &&
+    !onPreview &&
+    Boolean(suggestedCode) &&
+    finding.state !== 'needs-recheck';
+  const suggestion = useRef<HTMLHeadingElement>(null);
   const symbols = finding.steps.flatMap((step) => [
     ...(step.flow?.nodes ?? []),
     ...(step.links?.map((reference) => ({
@@ -115,43 +130,88 @@ export function ReviewGuide({
             snippet again before applying its fix.
           </p>
         )}
-        <p className="guide-description">
-          <ReviewText text={finding.description} nodes={symbols} />
-        </p>
-        <ol className="guide-explanation-steps" aria-label="Explanation steps">
-          {finding.steps.map((step, index) => (
-            <li
-              key={index}
-              className={activeStep === index ? 'guide-step-active' : ''}
-            >
-              <button
-                className="guide-step-description"
-                aria-current={activeStep === index ? 'step' : undefined}
-                onClick={() => onStep(index)}
-              >
-                <span className="guide-step-number" aria-hidden="true">
-                  {index + 1}
-                </span>
-                <span>
-                  <ReviewText
-                    text={step.description}
-                    nodes={[...symbols, ...(step.flow?.nodes ?? [])]}
-                  />
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
-        {!onPreview && finding.state !== 'needs-recheck' && (
+        {awaitingDetails ? (
+          <div className="guide-detail-status" role="status">
+            {finding.detailStatus === 'pending' ? (
+              <>
+                <span className="review-detail-spinner" aria-hidden="true" />
+                <strong>Analyzing details…</strong>
+                <p>Tracing variables, data flow, and suggested changes.</p>
+              </>
+            ) : (
+              <>
+                <strong>Details unavailable</strong>
+                <p>
+                  {finding.detailError ??
+                    'Review again to generate a detailed guide.'}
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
           <>
-            <h3 className="guide-fix-heading">Suggested change</h3>
-            <pre className="guide-fix">
-              <code>{finding.fix}</code>
-            </pre>
+            <p className="guide-description">
+              <ReviewText text={finding.description} nodes={symbols} />
+            </p>
+            <ol
+              className="guide-explanation-steps"
+              aria-label="Explanation steps"
+            >
+              {finding.steps.map((step, index) => (
+                <li
+                  key={index}
+                  className={activeStep === index ? 'guide-step-active' : ''}
+                >
+                  <button
+                    className="guide-step-description"
+                    aria-current={activeStep === index ? 'step' : undefined}
+                    onClick={() => onStep(index)}
+                  >
+                    <span className="guide-step-number" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <span>
+                      <ReviewText
+                        text={step.description}
+                        nodes={[...symbols, ...(step.flow?.nodes ?? [])]}
+                      />
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+            {!onPreview &&
+              finding.state !== 'needs-recheck' &&
+              (suggestedCode ? (
+                <>
+                  <h3 ref={suggestion} className="guide-fix-heading">
+                    Suggested change
+                  </h3>
+                  <p className="guide-fix-note">
+                    Illustrative code · no applicable edit provided.
+                  </p>
+                  <pre className="guide-fix">
+                    <code>
+                      {suggestedCode.split('\n').map((line, index) => (
+                        <span key={index}>
+                          <CodeHighlight line={line} tokens={syntax[index]} />
+                          {'\n'}
+                        </span>
+                      ))}
+                    </code>
+                  </pre>
+                </>
+              ) : (
+                <p className="guide-fix-note">
+                  {finding.edit
+                    ? 'Suggested change: delete the affected lines.'
+                    : 'No code change suggested.'}
+                </p>
+              ))}
           </>
         )}
       </div>
-      {(onPreview || onDismiss) && (
+      {(onPreview || onDismiss || hasIllustrativeFix) && (
         <footer className="guide-fix-actions">
           {onDismiss && (
             <button className="secondary-button" onClick={onDismiss}>
@@ -162,6 +222,26 @@ export function ReviewGuide({
             <button className="primary-button" onClick={onPreview}>
               <Icon name="code" size={16} />
               Preview fix
+            </button>
+          )}
+          {hasIllustrativeFix && (
+            <button
+              className="secondary-button"
+              onClick={() => {
+                const container = content.current;
+                const heading = suggestion.current;
+                if (!container || !heading) return;
+                container.scrollTo({
+                  top:
+                    container.scrollTop +
+                    heading.getBoundingClientRect().top -
+                    container.getBoundingClientRect().top -
+                    22,
+                  behavior: 'smooth',
+                });
+              }}
+            >
+              View suggestion
             </button>
           )}
         </footer>

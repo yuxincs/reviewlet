@@ -31,11 +31,14 @@ export interface Finding {
   suggestion: string;
   suggestedCode: string;
   status: FindingStatus;
+  detailStatus?: 'pending' | 'ready' | 'failed';
+  detailError?: string;
   needsRecheck?: boolean;
   comments: Comment[];
 }
 
 export interface Review extends ReviewInput {
+  reviewPhase?: 'detailing' | 'complete';
   reviewStatus?: 'draft' | 'reviewing' | 'reviewed' | 'stale' | 'failed';
   id: string;
   createdAt: string;
@@ -61,6 +64,7 @@ export interface ReviewApi {
     id: string,
     input: ReviewInput,
     signal?: AbortSignal,
+    onProgress?: (review: Review) => void,
   ): Promise<Review>;
   updateFinding(
     reviewId: string,

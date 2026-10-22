@@ -27,6 +27,7 @@ export function CodeEditor({
   onReviewLine,
   onDismissReview,
   disabled,
+  reviewPhase,
 }: {
   code: string;
   fixPreview?: {
@@ -48,12 +49,14 @@ export function CodeEditor({
   onReviewLine?: (line: number, anchor: ReviewAnchor) => void;
   onDismissReview?: () => void;
   disabled: boolean;
+  reviewPhase?: 'detecting' | 'detailing';
 }) {
   const palette = useFlowPalette();
   const textarea = useRef<HTMLTextAreaElement>(null);
   const highlightRef = useRef<HTMLPreElement>(null);
   const gutter = useRef<HTMLDivElement>(null);
   const editor = useRef<HTMLDivElement>(null);
+  const pendingOverlay = useRef<HTMLDivElement>(null);
   const fixActions = useRef<HTMLDivElement>(null);
   const savedScroll = useRef<{ top: number; left: number } | undefined>(
     undefined,
@@ -165,6 +168,23 @@ export function CodeEditor({
     if (!input) return;
     if (fixPreview && !savedScroll.current) {
       savedScroll.current = { top: input.scrollTop, left: input.scrollLeft };
+      // The explanation may focus on a distant sink while the fix changes an
+      // earlier assignment. Bring the actual diff and its actions into view.
+      if (input.clientHeight > 0) {
+        const style = getComputedStyle(input);
+        const lineHeight = parseFloat(style.lineHeight) || 25;
+        const padding = parseFloat(style.paddingTop) || 0;
+        const top = padding + (fixPreview.edit.startLine - 1) * lineHeight;
+        const bottom =
+          padding + (fixPreview.edit.endLine + added.length + 2) * lineHeight;
+        input.scrollTop = Math.max(
+          0,
+          bottom - top <= input.clientHeight - padding * 2
+            ? Math.min(top - padding, bottom - input.clientHeight + padding)
+            : top - padding,
+        );
+        input.scrollLeft = 0;
+      }
       editor.current?.focus({ preventScroll: true });
     } else if (!fixPreview && savedScroll.current) {
       input.scrollTop = savedScroll.current.top;
@@ -178,12 +198,35 @@ export function CodeEditor({
     if (gutter.current) gutter.current.scrollTop = input.scrollTop;
     if (fixActions.current)
       fixActions.current.style.transform = `translateY(${-input.scrollTop}px)`;
-  }, [fixPreview]);
+  }, [fixPreview, added.length]);
+  // Merge overlapping pending ranges so their animated outlines stay legible.
+  const pendingRanges: { start: number; end: number; count: number }[] = [];
+  if (reviewPhase === 'detailing')
+    for (const finding of findings
+      .filter((finding) => finding.detailStatus === 'pending')
+      .sort((a, b) => a.lineStart - b.lineStart)) {
+      const previous = pendingRanges.at(-1);
+      if (previous && finding.lineStart <= previous.end) {
+        previous.end = Math.max(previous.end, finding.lineEnd);
+        previous.count++;
+      } else
+        pendingRanges.push({
+          start: finding.lineStart,
+          end: finding.lineEnd,
+          count: 1,
+        });
+    }
+  useLayoutEffect(() => {
+    if (pendingOverlay.current)
+      pendingOverlay.current.style.transform = `translateY(${-(textarea.current?.scrollTop ?? 0)}px)`;
+  }, [reviewPhase, findings]);
   function syncScroll(event: UIEvent<HTMLTextAreaElement>) {
     if (highlightRef.current) {
       highlightRef.current.scrollTop = event.currentTarget.scrollTop;
       highlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
     }
+    if (pendingOverlay.current)
+      pendingOverlay.current.style.transform = `translateY(${-event.currentTarget.scrollTop}px)`;
     if (gutter.current)
       gutter.current.scrollTop = event.currentTarget.scrollTop;
     if (fixActions.current)
@@ -276,6 +319,42 @@ export function CodeEditor({
             ),
           )}
         </div>
+        {reviewPhase === 'detecting' && (
+          <div className="review-scan" aria-hidden="true">
+            <span />
+          </div>
+        )}
+        {pendingRanges.length > 0 && (
+          <div className="pending-ranges-clip" aria-hidden="true">
+            <div ref={pendingOverlay} className="pending-ranges-scroll">
+              {pendingRanges.map((range) => (
+                <div
+                  key={range.start}
+                  className="pending-finding-range"
+                  style={{
+                    top: `calc(var(--editor-padding-top, 16px) + ${(range.start - 1) * 25}px)`,
+                    height: `${(range.end - range.start + 1) * 25}px`,
+                  }}
+                >
+                  <svg width="100%" height="100%" preserveAspectRatio="none">
+                    <rect
+                      x="1"
+                      y="1"
+                      width="calc(100% - 2px)"
+                      height="calc(100% - 2px)"
+                      rx="5"
+                      pathLength="100"
+                    />
+                  </svg>
+                  <span>
+                    {range.count > 1 ? `${range.count} findings · ` : ''}
+                    Analyzing details…
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <pre
           ref={highlightRef}
           className="highlight-code"
@@ -336,7 +415,7 @@ export function CodeEditor({
           aria-label="Code snippet"
           aria-describedby={findings.length ? findingsDescription : undefined}
           value={code}
-          readOnly={Boolean(fixPreview)}
+          readOnly={Boolean(fixPreview) || Boolean(reviewPhase)}
           tabIndex={fixPreview ? -1 : undefined}
           style={
             fixPreview
@@ -466,6 +545,18 @@ export function CodeEditor({
             <span className="inline-fix-status"> · Previewing fix</span>
           )}
         </span>
+        {reviewPhase && (
+          <span
+            className="editor-review-progress"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="review-detail-spinner" aria-hidden="true" />
+            {reviewPhase === 'detecting'
+              ? 'Scanning for issues…'
+              : `${findings.filter((finding) => finding.detailStatus === 'ready').length}/${findings.length} guides ready · Analyzing details…`}
+          </span>
+        )}
         <span>
           {lines.length} lines <span className="status-separator">|</span>{' '}
           {code.length.toLocaleString()} / 30,000 characters{' '}

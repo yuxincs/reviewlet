@@ -1478,9 +1478,93 @@ textarea::placeholder {
   cursor: default;
   opacity: 0.5;
 }
+.editor-review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-left: auto;
+  flex-shrink: 0;
+  max-width: 100%;
+}
 .editor-titlebar .review-snippet-button {
   flex-shrink: 0;
-  margin-left: auto;
+}
+.apply-fix-feature {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  color: var(--body);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.apply-fix-feature small {
+  color: var(--muted);
+  font-size: inherit;
+}
+.apply-fix-feature input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: inherit;
+}
+.feature-switch-track {
+  display: block;
+  width: 30px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 1px solid var(--gutter);
+  border-radius: 20px;
+  background: var(--subtle);
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+.feature-switch-track::after {
+  content: '';
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin: 2px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 150ms ease;
+}
+.apply-fix-feature input:checked + .feature-switch-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.apply-fix-feature input:checked + .feature-switch-track::after {
+  background: white;
+  transform: translateX(12px);
+}
+.apply-fix-feature input:focus-visible + .feature-switch-track {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+}
+.apply-fix-feature:has(input:disabled) {
+  opacity: 0.55;
+  cursor: default;
+}
+@media (max-width: 1050px) {
+  .editor-titlebar {
+    flex-wrap: wrap;
+    padding-block: 10px;
+    row-gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feature-switch-track,
+  .feature-switch-track::after {
+    transition: none;
+  }
 }
 .review-snippet-button kbd {
   margin-left: 5px;
@@ -2449,9 +2533,40 @@ textarea::placeholder {
 }
 
 .guide-fix-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   flex-shrink: 0;
   padding: 14px 22px;
+  border-top: 1px solid var(--line);
   background: var(--card);
+}
+.guide-dismiss-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 10px 14px;
+  border: 1px solid var(--accent-line);
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+.guide-dismiss-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-text) 15%, var(--card));
+  border-color: var(--accent-text);
+}
+.guide-fix-actions > .primary-button,
+.guide-fix-actions > .secondary-button {
+  margin-left: auto;
 }
 .has-fix-preview {
   outline: none;

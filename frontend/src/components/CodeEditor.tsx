@@ -33,7 +33,7 @@ export function CodeEditor({
   fixPreview?: {
     edit: CodeEdit;
     title: string;
-    onApply: () => void;
+    onApply?: () => void;
     onBack: () => void;
   };
   language: Language;
@@ -497,7 +497,16 @@ export function CodeEditor({
               top: `calc(var(--editor-padding-top) + ${(fixPreview.edit.endLine + added.length) * 25}px)`,
             }}
           >
-            <button className="primary-button" onClick={fixPreview.onApply}>
+            <button
+              className="primary-button"
+              onClick={fixPreview.onApply}
+              disabled={!fixPreview.onApply}
+              title={
+                fixPreview.onApply
+                  ? undefined
+                  : 'Enable Apply fix (unfinished) in the title bar to apply this change.'
+              }
+            >
               <Icon name="check" size={15} />
               Apply fix
             </button>

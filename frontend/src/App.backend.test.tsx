@@ -94,6 +94,9 @@ it('submits by shortcut, highlights a backend finding, opens its explanation, an
     within(guide).getByText(response.findings[0].steps[0].description),
   ).toBeTruthy();
   fireEvent.click(within(guide).getByRole('button', { name: 'Preview fix' }));
+  fireEvent.click(
+    screen.getByRole('switch', { name: 'Apply fix (unfinished)' }),
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
   await waitFor(() =>
     expect(

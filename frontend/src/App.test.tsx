@@ -18,6 +18,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function enableApplyFix() {
+  const toggle = screen.getByRole<HTMLInputElement>('switch', {
+    name: 'Apply fix (unfinished)',
+  });
+  if (!toggle.checked) fireEvent.click(toggle);
+}
+
 async function openWorkspace() {
   const api = createMockReviewApi(localStorage, 0);
   render(<App api={api} />);
@@ -574,12 +581,46 @@ describe('snippet editor workspace', () => {
     ).toBe(examples.database.code);
   });
 
+  it('requires the unfinished feature toggle before applying a fix and remembers the preference', async () => {
+    const api = await openWorkspace();
+    const save = vi.spyOn(api, 'saveReviewRevision');
+    const toggle = screen.getByRole<HTMLInputElement>('switch', {
+      name: 'Apply fix (unfinished)',
+    });
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show review for line 4' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    const apply = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'Apply fix',
+    });
+    expect(apply.disabled).toBe(true);
+    fireEvent.click(apply);
+    expect(save).not.toHaveBeenCalled();
+    fireEvent.click(toggle);
+    expect(apply.disabled).toBe(false);
+    expect(localStorage.getItem('reviewlet.features.apply-fix')).toBe('true');
+    fireEvent.click(toggle);
+    expect(apply.disabled).toBe(true);
+    expect(localStorage.getItem('reviewlet.features.apply-fix')).toBe('false');
+    fireEvent.click(toggle);
+    cleanup();
+    await openWorkspace();
+    expect(
+      screen.getByRole<HTMLInputElement>('switch', {
+        name: 'Apply fix (unfinished)',
+      }).checked,
+    ).toBe(true);
+  });
+
   it('applies a fix, persists shifted findings, and restores the previous review on undo', async () => {
     const api = await openWorkspace();
     fireEvent.click(
       screen.getByRole('button', { name: 'Show review for line 4' }),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    enableApplyFix();
     fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
     const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {
       name: 'Code snippet',
@@ -627,6 +668,7 @@ describe('snippet editor workspace', () => {
       screen.getByRole('button', { name: 'Show review for line 4' }),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    enableApplyFix();
     fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
     await screen.findByRole('button', { name: 'Undo' });
     cleanup();
@@ -647,6 +689,7 @@ describe('snippet editor workspace', () => {
         ?.getAttribute('data-line'),
     ).toBe('4');
     fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    enableApplyFix();
     fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
     await screen.findByRole('button', { name: 'Undo' });
     fireEvent.click(
@@ -656,6 +699,7 @@ describe('snippet editor workspace', () => {
       screen.getByRole('heading', { name: 'Missing user is unchecked' }),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    enableApplyFix();
     fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
     await screen.findByRole('button', { name: 'Undo' });
     expect(
@@ -699,6 +743,7 @@ describe('snippet editor workspace', () => {
       await screen.findByRole('button', { name: 'Show review for line 4' }),
     );
     fireEvent.click(screen.getByRole('button', { name: 'Preview fix' }));
+    enableApplyFix();
     fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(
@@ -722,6 +767,7 @@ describe('snippet editor workspace', () => {
     });
     expect(preview.querySelectorAll('.fix-diff-removed')).toHaveLength(1);
     expect(preview.querySelector('.fix-diff-added')).toBeNull();
+    enableApplyFix();
     fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }));
     const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {
       name: 'Code snippet',

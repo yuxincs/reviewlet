@@ -57,6 +57,13 @@ export default function App({
   useEffect(() => () => reviewAbort.current?.abort(), []);
   const [reviewing, setReviewing] = useState(false);
   const [savingFix, setSavingFix] = useState(false);
+  const [applyFixEnabled, setApplyFixEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('reviewlet.features.apply-fix') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [reviewNotice, setReviewNotice] = useState('');
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideAnchor, setGuideAnchor] = useState<ReviewAnchor>();
@@ -138,7 +145,14 @@ export default function App({
     });
   }
   async function applyFix() {
-    if (!preview || !activeSnippet || !activeFinding || busy) return;
+    if (
+      !applyFixEnabled ||
+      !preview ||
+      !activeSnippet ||
+      !activeFinding ||
+      busy
+    )
+      return;
     const before = activeSnippet;
     const updated =
       before.code === preview.code
@@ -745,26 +759,54 @@ export default function App({
                 {loading ? 'Loading…' : 'Your workspace'}
               </span>
             )}
-            <button
-              type="button"
-              className="primary-button review-snippet-button"
-              disabled={busy || Boolean(preview) || !activeSnippet?.code.trim()}
-              onClick={() => {
-                void submitReview();
-              }}
-              aria-label={reviewing ? 'Reviewing…' : 'Review snippet'}
-              aria-busy={reviewing}
-              aria-keyshortcuts="Meta+Enter Control+Enter"
-              title="Review snippet (⌘Enter / Ctrl+Enter)"
-            >
-              <Icon
-                name={reviewing ? 'spinner' : 'sparkle'}
-                size={16}
-                className={reviewing ? 'review-spinner' : ''}
-              />
-              <span>{reviewing ? 'Reviewing…' : 'Review snippet'}</span>
-              <kbd aria-hidden="true">⌘↵</kbd>
-            </button>
+            <div className="editor-review-actions">
+              <label className="apply-fix-feature">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={applyFixEnabled}
+                  disabled={savingFix}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setApplyFixEnabled(enabled);
+                    try {
+                      localStorage.setItem(
+                        'reviewlet.features.apply-fix',
+                        String(enabled),
+                      );
+                    } catch {
+                      /* Keep the feature flag for this session. */
+                    }
+                  }}
+                />
+                <span className="feature-switch-track" aria-hidden="true" />
+                <span>
+                  Apply fix <small>(unfinished)</small>
+                </span>
+              </label>
+              <button
+                type="button"
+                className="primary-button review-snippet-button"
+                disabled={
+                  busy || Boolean(preview) || !activeSnippet?.code.trim()
+                }
+                onClick={() => {
+                  void submitReview();
+                }}
+                aria-label={reviewing ? 'Reviewing…' : 'Review snippet'}
+                aria-busy={reviewing}
+                aria-keyshortcuts="Meta+Enter Control+Enter"
+                title="Review snippet (⌘Enter / Ctrl+Enter)"
+              >
+                <Icon
+                  name={reviewing ? 'spinner' : 'sparkle'}
+                  size={16}
+                  className={reviewing ? 'review-spinner' : ''}
+                />
+                <span>{reviewing ? 'Reviewing…' : 'Review snippet'}</span>
+                <kbd aria-hidden="true">⌘↵</kbd>
+              </button>
+            </div>
           </div>
         </header>
         <main
@@ -822,9 +864,11 @@ export default function App({
                       ? {
                           edit: preview.edit,
                           title: preview.title,
-                          onApply: () => {
-                            void applyFix();
-                          },
+                          onApply: applyFixEnabled
+                            ? () => {
+                                void applyFix();
+                              }
+                            : undefined,
                           onBack: () => setFixPreview(undefined),
                         }
                       : undefined

@@ -214,7 +214,8 @@ export function ReviewGuide({
       {(onPreview || onDismiss || hasIllustrativeFix) && (
         <footer className="guide-fix-actions">
           {onDismiss && (
-            <button className="secondary-button" onClick={onDismiss}>
+            <button className="guide-dismiss-button" onClick={onDismiss}>
+              <Icon name="close" size={16} />
               Dismiss finding
             </button>
           )}

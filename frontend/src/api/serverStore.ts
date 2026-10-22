@@ -12,6 +12,10 @@ import { attachReview } from './reviewMapping';
 import { createSnippetStore } from './store';
 
 type SnippetStore = Omit<ReviewApi, 'createReview' | 'reviewSnippet'>;
+export interface ServerSnippetStore extends SnippetStore {
+  acceptReview(id: string, result: ReviewResponse): Promise<Review>;
+  failReview(id: string, version?: number): Promise<void>;
+}
 
 export function fromSavedSnippet(snippet: SavedSnippet): Review {
   const base: Review = {
@@ -138,9 +142,10 @@ function browserStorage(): Storage | undefined {
 
 export function createServerSnippetStore(
   storage = browserStorage(),
-): SnippetStore {
+): ServerSnippetStore {
   const cache = new Map<string, SavedSnippet>();
   let migrated = false;
+  let loaded = false;
   // Preserve the order of blur saves, review submission, fix application and deletion.
   let pending: Promise<unknown> = Promise.resolve();
   function enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -150,11 +155,15 @@ export function createServerSnippetStore(
   }
   function remember(snippet: SavedSnippet): Review {
     cache.set(snippet.id, snippet);
-    return fromSavedSnippet(snippet);
+    return fromSavedSnippet(structuredClone(snippet));
   }
   return {
     listReviews: () =>
       enqueue(async () => {
+        if (loaded)
+          return [...cache.values()].map((snippet) =>
+            fromSavedSnippet(structuredClone(snippet)),
+          );
         const snippets = unwrap(await listSnippets());
         if (!migrated) {
           const marker = 'reviewlet.sqlite-migrated.v1';
@@ -199,7 +208,42 @@ export function createServerSnippetStore(
           migrated = true;
         }
         cache.clear();
-        return snippets.map(remember);
+        const reviews = snippets.map(remember);
+        loaded = true;
+        return reviews;
+      }),
+    acceptReview: (id, result) =>
+      enqueue(async () => {
+        const known = cache.get(id);
+        if (!known) throw new Error('This snippet is no longer available.');
+        if (!result.snippetVersion)
+          throw new Error(
+            'The backend did not return the saved snippet version. Restart the backend and reload.',
+          );
+        return Promise.resolve(
+          remember({
+            ...known,
+            version: result.snippetVersion,
+            reviewStatus: 'reviewed',
+            updatedAt: result.createdAt,
+            review: {
+              result,
+              findingStates: Object.fromEntries(
+                result.findings.map((finding) => [
+                  finding.id,
+                  { status: 'open', guideState: 'current', comments: [] },
+                ]),
+              ),
+            },
+          }),
+        );
+      }),
+    failReview: (id, version) =>
+      enqueue(async () => {
+        const known = cache.get(id);
+        if (known && version)
+          cache.set(id, { ...known, version, reviewStatus: 'failed' });
+        return Promise.resolve();
       }),
     saveSnippet: (id, input) =>
       enqueue(async () => {

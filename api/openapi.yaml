@@ -338,6 +338,10 @@ components:
           type: string
           format: date-time
           description: Time the review result was produced, in RFC 3339 format.
+        snippetVersion:
+          type: integer
+          minimum: 1
+          description: Updated saved snippet version when snippetId was supplied. Lets clients update their cache without pulling the workspace again.
         codeHash:
           type: string
           pattern: "^[a-f0-9]{64}$"
@@ -621,6 +625,10 @@ components:
               type: string
               minLength: 1
               description: Human-readable description of the failure.
+            snippetVersion:
+              type: integer
+              minimum: 1
+              description: Saved snippet version after a failed persisted review, when available.
             requestId:
               type: string
               description: Optional identifier for correlating service logs.

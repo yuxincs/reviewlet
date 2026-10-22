@@ -60,10 +60,13 @@ async function openServerWorkspace() {
     return Response.json(snippet);
   });
   apiClient.setConfig({ fetch: transport });
-  render(<App api={createReviewApi(undefined, createServerSnippetStore())} />);
+  const view = render(
+    <App api={createReviewApi(undefined, createServerSnippetStore())} />,
+  );
   await screen.findByRole('button', { name: 'Draft' });
   vi.useFakeTimers();
   return {
+    view,
     snippets,
     transport,
     editor: screen.getByRole('textbox', { name: 'Code snippet' }),
@@ -193,4 +196,24 @@ it('persists a manual language across typing and reloads, then resumes detection
     language: 'python',
     languageMode: 'auto',
   });
+});
+
+it('pulls only on startup and preserves an unsaved draft across API prop changes and elapsed time', async () => {
+  const { view, editor, transport } = await openServerWorkspace();
+  fireEvent.change(editor, { target: { value: 'unfinished changes' } });
+  view.rerender(
+    <App api={createReviewApi(undefined, createServerSnippetStore())} />,
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60_000);
+  });
+  expect(
+    screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+      .value,
+  ).toBe('unfinished changes');
+  expect(
+    transport.mock.calls.filter(
+      ([request]) => (request as Request).method === 'GET',
+    ),
+  ).toHaveLength(1);
 });

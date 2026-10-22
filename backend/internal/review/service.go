@@ -49,7 +49,7 @@ func NewService(config Config, logger *slog.Logger) (*Service, error) {
 	}, nil
 }
 
-func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRequestObject) (api.ReviewSnippetResponseObject, error) {
+func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRequestObject) (reply api.ReviewSnippetResponseObject, handlerErr error) {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 	if request.Body == nil {
@@ -69,7 +69,11 @@ func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRe
 			cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			// A completed or superseded run is untouched by token matching.
-			_ = s.store.FailReview(cleanup, *request.Body.SnippetId, run)
+			if failed, err := s.store.FailReview(cleanup, *request.Body.SnippetId, run); err == nil {
+				if response, ok := reply.(*reviewError); ok {
+					response.snippetVersion = &failed.Version
+				}
+			}
 		}()
 	}
 	data, err := s.provider.generate(ctx, *request.Body)
@@ -107,9 +111,11 @@ func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRe
 		return internalError(), nil
 	}
 	if request.Body.SnippetId != nil {
-		if err := s.store.CompleteReview(ctx, *request.Body.SnippetId, run, response); err != nil {
+		saved, err := s.store.CompleteReview(ctx, *request.Body.SnippetId, run, response)
+		if err != nil {
 			return workspaceError(err), nil
 		}
+		response.SnippetVersion = &saved.Version
 	}
 	logging.FromContext(ctx, s.logger).InfoContext(ctx, "review_completed", "review_id", response.Id, "finding_count", len(response.Findings))
 	return api.ReviewSnippet200JSONResponse(response), nil

@@ -73,6 +73,9 @@ func TestWorkspaceHTTPPersistence(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &review); err != nil {
 		t.Fatal(err)
 	}
+	if review.SnippetVersion == nil {
+		t.Fatal("persisted review omitted its updated snippet version")
+	}
 	response = workspaceCall(t, handler, "PATCH", "/api/v1/snippets/6405d432-0160-417f-9c20-700ea4070782/findings/"+review.Findings[0].Id, map[string]any{"reviewId": review.Id, "status": "dismissed"})
 	if response.Code != 200 {
 		t.Fatalf("decision %d: %s", response.Code, response.Body.String())
@@ -93,6 +96,9 @@ func TestWorkspaceHTTPPersistence(t *testing.T) {
 	}
 	if len(saved) != 1 || saved[0].ReviewStatus != api.Reviewed || saved[0].Review.FindingStates[review.Findings[0].Id].Status != api.SavedFindingStateStatusDismissed {
 		t.Fatalf("lost persisted decisions: %s", response.Body.String())
+	}
+	if saved[0].Version != *review.SnippetVersion+1 {
+		t.Fatal("review response did not report its saved version")
 	}
 	if saved[0].Title != "Example" || string(saved[0].Language) != language || saved[0].CreatedAt.IsZero() || saved[0].Id != "6405d432-0160-417f-9c20-700ea4070782" {
 		t.Fatal("snippet metadata did not persist")
@@ -125,11 +131,18 @@ func TestSavedReviewFailureAndSourceMismatch(t *testing.T) {
 	request.Code = input.Code
 	response = workspaceCall(t, service.Handler(), "POST", "/api/v1/review", request)
 	assertError(t, response, 503, api.ErrorResponseErrorCodeReviewUnavailable)
+	var failure api.ErrorResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil {
+		t.Fatal(err)
+	}
 	snippets, err := store.List(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if snippets[0].ReviewStatus != api.Failed {
 		t.Fatal("failure status was not persisted")
+	}
+	if failure.Error.SnippetVersion == nil || *failure.Error.SnippetVersion != snippets[0].Version {
+		t.Fatal("failed review omitted its saved snippet version")
 	}
 }

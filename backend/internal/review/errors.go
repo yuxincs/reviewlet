@@ -7,10 +7,11 @@ import (
 )
 
 type reviewError struct {
-	status     int
-	code       api.ErrorResponseErrorCode
-	message    string
-	retryAfter int
+	status         int
+	code           api.ErrorResponseErrorCode
+	message        string
+	retryAfter     int
+	snippetVersion *int
 }
 
 func (e *reviewError) Error() string { return e.message }

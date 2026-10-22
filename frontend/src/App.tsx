@@ -16,7 +16,13 @@ import { WelcomePage } from './components/WelcomePage';
 import type { Language, Review, ReviewApi, ReviewInput } from './types/review';
 import './styles.css';
 
-export default function App({ api = reviewApi }: { api?: ReviewApi }) {
+export default function App({
+  api: initialApi = reviewApi,
+}: {
+  api?: ReviewApi;
+}) {
+  // Keep one workspace session, including across development rerenders.
+  const [api] = useState(() => initialApi);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       const saved = localStorage.getItem('reviewlet.sidebar-collapsed');

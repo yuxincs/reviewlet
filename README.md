@@ -121,7 +121,7 @@ Each snippet has an immutable UUID (assigned by the frontend at creation and val
 | `PATCH /api/v1/snippets/{id}/findings/{findingId}` | Accept, dismiss or reopen a finding in the specified review              |
 | `PUT /api/v1/snippets/{id}/review-state`           | Save an applied fix or undo with updated finding locations and decisions |
 
-Updates require the latest `expectedVersion`; fix revisions also require exact `expectedCode`. Conflicts return 409 rather than overwriting another tab's changes. Finding decisions include `reviewId` so a stale decision cannot affect a newer review. A late model response cannot overwrite edited or deleted source. Review requests without `snippetId` remain stateless. Workspace write requests are limited to 2 MiB.
+Updates require the latest `expectedVersion`; fix revisions also require exact `expectedCode`. Conflicts return 409 rather than overwriting another tab's changes. Finding decisions include `reviewId` so a stale decision cannot affect a newer review. A late model response cannot overwrite edited or deleted source. Review requests without `snippetId` remain stateless. Workspace write requests are limited to 2 MiB. The frontend pulls the collection once at startup and then reads its in-memory workspace. Save and review responses update that cache directly; persisted review success/error responses include `snippetVersion` for subsequent writes. There is no collection polling or review-triggered collection refresh. Reloading the page explicitly pulls the latest saved workspace.
 
 ## API contract
 

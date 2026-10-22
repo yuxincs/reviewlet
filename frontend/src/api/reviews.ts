@@ -1,6 +1,9 @@
 import { reviewSnippet as requestReview, type ReviewResponse } from './client';
 import { createSnippetStore } from './store';
-import { createServerSnippetStore } from './serverStore';
+import {
+  createServerSnippetStore,
+  type ServerSnippetStore,
+} from './serverStore';
 import { attachReview } from './reviewMapping';
 import type { ReviewApi, ReviewInput } from '../types/review';
 
@@ -40,7 +43,14 @@ function reviewError(error: unknown, response?: Response): Error {
   if (typeof requestId === 'string' && /^[\w-]{1,128}$/.test(requestId)) {
     message += ` (Request ID: ${requestId})`;
   }
-  return new Error(message);
+  return Object.assign(new Error(message), {
+    snippetVersion:
+      typeof detail?.snippetVersion === 'number' &&
+      Number.isInteger(detail.snippetVersion) &&
+      detail.snippetVersion > 0
+        ? detail.snippetVersion
+        : undefined,
+  });
 }
 
 async function reviewCode(
@@ -84,7 +94,7 @@ async function reviewCode(
 
 export function createReviewApi(
   storage?: Storage,
-  serverStore?: Omit<ReviewApi, 'createReview' | 'reviewSnippet'>,
+  serverStore?: ServerSnippetStore,
 ): ReviewApi {
   const store =
     serverStore ??
@@ -123,14 +133,22 @@ export function createReviewApi(
             'The snippet changed while it was being reviewed. Review the latest code again.',
           );
         }
-        if (serverStore) return current;
+        if (serverStore) return serverStore.acceptReview(id, result);
         return store.saveReviewRevision(
           attachReview(current, result),
           input.code,
         );
       } catch (error) {
-        // A failed persisted review also advances its version/status on the server.
-        if (serverStore) await store.listReviews().catch(() => undefined);
+        // The error carries the saved version; no workspace re-fetch is needed.
+        if (serverStore)
+          await serverStore.failReview(
+            id,
+            error instanceof Error &&
+              'snippetVersion' in error &&
+              typeof error.snippetVersion === 'number'
+              ? error.snippetVersion
+              : undefined,
+          );
         throw error;
       } finally {
         if (requests.get(id) === request) requests.delete(id);

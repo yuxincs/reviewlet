@@ -82,8 +82,7 @@ it('persists a live review and dismissal through generated endpoints and restore
     .mockResolvedValueOnce(Response.json(saved()))
     .mockResolvedValueOnce(Response.json([saved()]))
     .mockResolvedValueOnce(Response.json(saved(2)))
-    .mockResolvedValueOnce(Response.json(result))
-    .mockResolvedValueOnce(Response.json([reviewed(4)]))
+    .mockResolvedValueOnce(Response.json({ ...result, snippetVersion: 4 }))
     .mockResolvedValueOnce(Response.json(dismissed))
     .mockResolvedValueOnce(Response.json([dismissed]));
   apiClient.setConfig({ fetch: transport });
@@ -97,7 +96,7 @@ it('persists a live review and dismissal through generated endpoints and restore
     code: input.code,
   });
   await api.updateFinding('snippet', 'f1', 'dismissed');
-  const decision = transport.mock.calls[5][0] as Request;
+  const decision = transport.mock.calls[4][0] as Request;
   expect(decision.method).toBe('PATCH');
   expect(await decision.json()).toEqual({
     reviewId: 'review1',
@@ -106,6 +105,11 @@ it('persists a live review and dismissal through generated endpoints and restore
   const [restored] = await createServerSnippetStore().listReviews();
   expect(restored.findings[0].status).toBe('dismissed');
   expect(restored.analysis?.id).toBe('review1');
+  expect(
+    transport.mock.calls.filter(
+      ([request]) => (request as Request).method === 'GET',
+    ),
+  ).toHaveLength(2); // One startup pull per store instance.
 });
 
 it('saves an applied fix with its decisions and version precondition, and surfaces conflicts', async () => {
@@ -168,5 +172,43 @@ it('imports browser snippets once without resurrecting deleted snippets', async 
   expect(await createServerSnippetStore(localStorage).listReviews()).toEqual(
     [],
   );
+  expect(transport).toHaveBeenCalledTimes(4);
+});
+
+it('uses the failure response version for subsequent saves without refreshing the collection', async () => {
+  const transport = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json([saved()]))
+    .mockResolvedValueOnce(Response.json(saved(2)))
+    .mockResolvedValueOnce(
+      Response.json(
+        {
+          error: {
+            code: 'review_failed',
+            message: 'Review failed.',
+            snippetVersion: 4,
+          },
+        },
+        { status: 502 },
+      ),
+    )
+    .mockResolvedValueOnce(
+      Response.json({ ...saved(5), code: 'return null;' }),
+    );
+  apiClient.setConfig({ fetch: transport });
+  const api = createReviewApi(undefined, createServerSnippetStore());
+  await api.listReviews();
+  await expect(api.reviewSnippet('snippet', input)).rejects.toThrow(
+    'Review failed.',
+  );
+  await api.saveSnippet('snippet', { ...input, code: 'return null;' });
+  const request = transport.mock.calls[3][0] as Request;
+  expect(await request.json()).toMatchObject({ expectedVersion: 4 });
+  expect(
+    transport.mock.calls.filter(
+      ([request]) => (request as Request).method === 'GET',
+    ),
+  ).toHaveLength(1);
+  await api.listReviews();
   expect(transport).toHaveBeenCalledTimes(4);
 });

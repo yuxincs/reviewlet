@@ -49,7 +49,7 @@ func TestPersistsReviewAndDismissalAcrossRestart(t *testing.T) {
 	check(t, err)
 	token, err := store.BeginReview(ctx, request(saved.Id))
 	check(t, err)
-	check(t, store.CompleteReview(ctx, saved.Id, token, result("review1")))
+	check(t, completeReview(store, ctx, saved.Id, token, result("review1")))
 	dismissed, err := store.Decide(ctx, saved.Id, "f1", api.FindingDecisionRequest{ReviewId: "review1", Status: api.FindingDecisionRequestStatusDismissed})
 	check(t, err)
 	check(t, store.Close())
@@ -107,7 +107,7 @@ func TestStaleWritesAndLateReviews(t *testing.T) {
 	change.ExpectedVersion = &snippets[0].Version
 	_, err = store.Save(ctx, "snippet", change)
 	check(t, err)
-	if err := store.CompleteReview(ctx, "snippet", token, result("old")); !errors.Is(err, ErrConflict) {
+	if err := completeReview(store, ctx, "snippet", token, result("old")); !errors.Is(err, ErrConflict) {
 		t.Fatalf("late review accepted: %v", err)
 	}
 	snippets, err = store.List(ctx)
@@ -117,7 +117,7 @@ func TestStaleWritesAndLateReviews(t *testing.T) {
 	}
 	check(t, store.Delete(ctx, "snippet"))
 	check(t, store.Delete(ctx, "snippet"))
-	if err := store.CompleteReview(ctx, "snippet", token, result("old")); !errors.Is(err, ErrNotFound) {
+	if err := completeReview(store, ctx, "snippet", token, result("old")); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("deleted snippet restored: %v", err)
 	}
 }
@@ -133,10 +133,11 @@ func TestInterruptedAndSupersededReviews(t *testing.T) {
 	check(t, err)
 	second, err := store.BeginReview(ctx, request("snippet"))
 	check(t, err)
-	if err := store.CompleteReview(ctx, "snippet", first, result("old")); !errors.Is(err, ErrConflict) {
+	if err := completeReview(store, ctx, "snippet", first, result("old")); !errors.Is(err, ErrConflict) {
 		t.Fatal("superseded review accepted")
 	}
-	check(t, store.FailReview(ctx, "snippet", second))
+	_, err = store.FailReview(ctx, "snippet", second)
+	check(t, err)
 	_, err = store.BeginReview(ctx, request("snippet"))
 	check(t, err)
 	check(t, store.Close())
@@ -157,7 +158,7 @@ func TestFixRevisionAndDecisionScope(t *testing.T) {
 	check(t, err)
 	token, err := store.BeginReview(ctx, request("snippet"))
 	check(t, err)
-	check(t, store.CompleteReview(ctx, "snippet", token, result("review1")))
+	check(t, completeReview(store, ctx, "snippet", token, result("review1")))
 	snippets, err := store.List(ctx)
 	check(t, err)
 	saved := snippets[0]
@@ -179,4 +180,9 @@ func TestFixRevisionAndDecisionScope(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatal("unknown finding accepted")
 	}
+}
+
+func completeReview(store *Store, ctx context.Context, id, token string, result api.ReviewResponse) error {
+	_, err := store.CompleteReview(ctx, id, token, result)
+	return err
 }

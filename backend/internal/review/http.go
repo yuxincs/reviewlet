@@ -89,6 +89,7 @@ func (e *reviewError) VisitReviewSnippetResponse(w http.ResponseWriter) error {
 	response := api.ErrorResponse{}
 	response.Error.Code = e.code
 	response.Error.Message = e.message
+	response.Error.SnippetVersion = e.snippetVersion
 	if requestID := w.Header().Get("X-Request-ID"); requestID != "" {
 		response.Error.RequestId = &requestID
 	}

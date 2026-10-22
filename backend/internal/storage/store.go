@@ -252,8 +252,8 @@ func (s *Store) BeginReview(ctx context.Context, request api.ReviewRequest) (str
 	return token, err
 }
 
-func (s *Store) CompleteReview(ctx context.Context, id, token string, result api.ReviewResponse) error {
-	_, err := s.mutate(ctx, id, nil, false, func(snippet *api.SavedSnippet, run *string) error {
+func (s *Store) CompleteReview(ctx context.Context, id, token string, result api.ReviewResponse) (api.SavedSnippet, error) {
+	return s.mutate(ctx, id, nil, false, func(snippet *api.SavedSnippet, run *string) error {
 		if *run != token {
 			return ErrConflict
 		}
@@ -266,11 +266,10 @@ func (s *Store) CompleteReview(ctx context.Context, id, token string, result api
 		*run = ""
 		return nil
 	})
-	return err
 }
 
-func (s *Store) FailReview(ctx context.Context, id, token string) error {
-	_, err := s.mutate(ctx, id, nil, false, func(snippet *api.SavedSnippet, run *string) error {
+func (s *Store) FailReview(ctx context.Context, id, token string) (api.SavedSnippet, error) {
+	return s.mutate(ctx, id, nil, false, func(snippet *api.SavedSnippet, run *string) error {
 		if *run != token {
 			return ErrConflict
 		}
@@ -278,7 +277,6 @@ func (s *Store) FailReview(ctx context.Context, id, token string) error {
 		*run = ""
 		return nil
 	})
-	return err
 }
 
 func (s *Store) SaveReviewState(ctx context.Context, id string, input api.SaveReviewStateRequest) (api.SavedSnippet, error) {

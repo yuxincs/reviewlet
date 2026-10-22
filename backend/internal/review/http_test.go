@@ -91,12 +91,16 @@ func TestReviewHTTP(t *testing.T) {
 					Schema map[string]any `json:"schema"`
 				} `json:"json_schema"`
 			} `json:"response_format"`
-			MaxTokens int   `json:"max_completion_tokens"`
-			Store     *bool `json:"store"`
+			MaxTokens       int    `json:"max_completion_tokens"`
+			ReasoningEffort string `json:"reasoning_effort"`
+			Store           *bool  `json:"store"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Error(err)
 			return
+		}
+		if payload.ReasoningEffort != "low" {
+			t.Errorf("reasoning effort = %q, want low", payload.ReasoningEffort)
 		}
 		if payload.Model != "test-model" || payload.Format.Type != "json_schema" || payload.Format.JSONSchema.Name != "snippet_review" || !payload.Format.JSONSchema.Strict || payload.Format.JSONSchema.Schema["type"] != "object" || payload.Format.JSONSchema.Schema["$defs"] == nil || payload.MaxTokens != 4096 || payload.Store == nil || *payload.Store {
 			t.Errorf("incorrect provider configuration: %+v", payload)

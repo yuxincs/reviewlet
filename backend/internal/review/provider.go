@@ -61,8 +61,9 @@ func (p *provider) generate(ctx context.Context, request api.ReviewRequest) (out
 			Type       string           `json:"type"`
 			JSONSchema jsonSchemaFormat `json:"json_schema"`
 		} `json:"response_format"`
-		MaxCompletionTokens int  `json:"max_completion_tokens"`
-		Store               bool `json:"store"`
+		MaxCompletionTokens int    `json:"max_completion_tokens"`
+		ReasoningEffort     string `json:"reasoning_effort"`
+		Store               bool   `json:"store"`
 	}{
 		Model: p.config.Model, Messages: messages,
 		ResponseFormat: struct {
@@ -72,6 +73,7 @@ func (p *provider) generate(ctx context.Context, request api.ReviewRequest) (out
 			Name: "snippet_review", Strict: true, Schema: json.RawMessage(p.schema),
 		}},
 		MaxCompletionTokens: p.config.MaxCompletionTokens, Store: false,
+		ReasoningEffort: "low",
 	})
 	if err != nil {
 		return nil, internalError()

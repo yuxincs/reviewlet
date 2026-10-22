@@ -48,7 +48,7 @@ Requires Go 1.27 or newer. In a separate terminal:
 make backend-run
 ```
 
-The server listens on port 8080. No routes are registered, so requests return 404.
+The server listens on port 8080 by default; set `LISTEN_ADDR` to override the listen address. No routes are registered, so requests return 404. HTTP header/read/write/idle timeouts are configured, and SIGINT/SIGTERM trigger graceful shutdown.
 The frontend development server proxies `/api` requests to this server.
 Run `make backend-test` to generate bindings and check compilation; no tests are defined yet.
 

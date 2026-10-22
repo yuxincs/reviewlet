@@ -50,6 +50,7 @@ func NewService(config Config, logger *slog.Logger) (*Service, error) {
 }
 
 func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRequestObject) (reply api.ReviewSnippetResponseObject, handlerErr error) {
+	started := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 	if request.Body == nil {
@@ -80,7 +81,9 @@ func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRe
 	if err != nil {
 		return asResponse(err), nil
 	}
+	validationStarted := time.Now()
 	result, err := decodeStructuredReview(data, request.Body.Code, s.contract)
+	validationMS := float64(time.Since(validationStarted).Microseconds()) / 1000
 	if err != nil {
 		logging.FromContext(ctx, s.logger).ErrorContext(ctx, "review_output_rejected", "stage", "validate_output", "error_code", asResponse(err).code)
 		return asResponse(err), nil
@@ -110,6 +113,7 @@ func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRe
 		logging.FromContext(ctx, s.logger).ErrorContext(ctx, "review_output_rejected", "stage", "validate_response", "error_code", api.ErrorResponseErrorCodeInternalError)
 		return internalError(), nil
 	}
+	persistenceStarted := time.Now()
 	if request.Body.SnippetId != nil {
 		saved, err := s.store.CompleteReview(ctx, *request.Body.SnippetId, run, response)
 		if err != nil {
@@ -117,6 +121,9 @@ func (s *Service) ReviewSnippet(ctx context.Context, request api.ReviewSnippetRe
 		}
 		response.SnippetVersion = &saved.Version
 	}
-	logging.FromContext(ctx, s.logger).InfoContext(ctx, "review_completed", "review_id", response.Id, "finding_count", len(response.Findings))
+	logging.FromContext(ctx, s.logger).InfoContext(ctx, "review_completed",
+		"review_id", response.Id, "finding_count", len(response.Findings),
+		"validation_ms", validationMS, "persistence_ms", float64(time.Since(persistenceStarted).Microseconds())/1000,
+		"duration_ms", float64(time.Since(started).Microseconds())/1000)
 	return api.ReviewSnippet200JSONResponse(response), nil
 }

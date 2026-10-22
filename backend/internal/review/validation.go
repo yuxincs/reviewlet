@@ -63,6 +63,58 @@ func decodeStructuredReview(data []byte, code string, contract *api.Contract) (m
 	if err := json.Unmarshal(data, &result); err != nil {
 		return modelReview{}, failedReview()
 	}
+	return normalizeReview(result, code, contract)
+}
+
+// Normalize deterministic source fields before enforcing the public contract.
+// Alternate provider representations use the same source/edit validation.
+func normalizeReview(result modelReview, code string, contract *api.Contract) (modelReview, error) {
+	lines := strings.Split(code, "\n")
+	completeReference := func(reference *api.SymbolReference) bool {
+		if reference != nil {
+			if reference.StartColumn == 0 {
+				if !validRange(reference.Line, reference.Line, len(lines)) || reference.Symbol == "" {
+					return false
+				}
+				line := lines[reference.Line-1]
+				position, unique := uniqueSymbolPosition(line, reference.Symbol)
+				if !unique {
+					return false
+				}
+				reference.StartColumn = codeUnits(line[:position]) + 1
+			}
+			reference.EndColumn = reference.StartColumn + codeUnits(reference.Symbol)
+		}
+		return true
+	}
+	for i := range result.Findings {
+		finding := &result.Findings[i]
+		finding.Id = fmt.Sprintf("f%d", i+1)
+		if edit := finding.Edit; edit != nil {
+			if !validRange(edit.StartLine, edit.EndLine, len(lines)) {
+				return modelReview{}, failedReview()
+			}
+			edit.Original = strings.Join(lines[edit.StartLine-1:edit.EndLine], "\n")
+			finding.Fix = edit.Replacement
+		}
+		for j := range finding.Steps {
+			step := &finding.Steps[j]
+			if step.Links != nil {
+				for k := range *step.Links {
+					if !completeReference(&(*step.Links)[k]) {
+						return modelReview{}, failedReview()
+					}
+				}
+			}
+			if step.Flow != nil {
+				for k := range step.Flow.Nodes {
+					if !completeReference(step.Flow.Nodes[k].Reference) {
+						return modelReview{}, failedReview()
+					}
+				}
+			}
+		}
+	}
 	normalized, err := json.Marshal(result)
 	if err != nil {
 		return modelReview{}, failedReview()
@@ -155,3 +207,44 @@ func validateModel(data []byte, code string, contract *api.Contract) (modelRevie
 }
 
 func validRange(start, end, total int) bool { return start >= 1 && end >= start && end <= total }
+
+// An identifier inside a longer identifier is not a second occurrence of the
+// referenced binding (e.g. totalCents within discountedSubtotalCents). Explicit
+// columns can still select any exact substring; this only resolves null columns.
+func uniqueSymbolPosition(line, symbol string) (int, bool) {
+	if symbol == "" {
+		return 0, false
+	}
+	identifierPart := func(r rune) bool {
+		return r == '_' || r == '$' || r == '\u200c' || r == '\u200d' || unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r)
+	}
+	first, _ := utf8.DecodeRuneInString(symbol)
+	last, _ := utf8.DecodeLastRuneInString(symbol)
+	found := -1
+	for offset := 0; offset <= len(line)-len(symbol); {
+		relative := strings.Index(line[offset:], symbol)
+		if relative < 0 {
+			break
+		}
+		start := offset + relative
+		end := start + len(symbol)
+		offset = start + 1
+		if start > 0 && identifierPart(first) {
+			previous, _ := utf8.DecodeLastRuneInString(line[:start])
+			if identifierPart(previous) {
+				continue
+			}
+		}
+		if end < len(line) && identifierPart(last) {
+			next, _ := utf8.DecodeRuneInString(line[end:])
+			if identifierPart(next) {
+				continue
+			}
+		}
+		if found >= 0 {
+			return 0, false
+		}
+		found = start
+	}
+	return found, found >= 0
+}

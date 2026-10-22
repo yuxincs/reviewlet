@@ -88,6 +88,7 @@ func LoadContract() (*Contract, error) {
 	collect(schemas["ModelReview"])
 	output := structuredSchema(schemas["ModelReview"])
 	output["$defs"] = definitions
+	compactReviewSchema(definitions)
 	modelJSON, err := json.Marshal(output)
 	if err != nil {
 		return nil, err

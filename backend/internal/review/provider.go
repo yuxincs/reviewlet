@@ -27,13 +27,30 @@ type provider struct {
 }
 
 func (p *provider) generate(ctx context.Context, request api.ReviewRequest) (output []byte, err error) {
+	messages, err := reviewMessages(request)
+	if err != nil {
+		return nil, internalError()
+	}
+	return p.generateMessages(ctx, messages)
+}
+
+func (p *provider) generateMessages(ctx context.Context, messages []message) (output []byte, err error) {
 	started := time.Now()
 	logger := logging.FromContext(ctx, p.logger).With("model", p.config.Model)
-	logger.InfoContext(ctx, "provider_request_started", "max_completion_tokens", p.config.MaxCompletionTokens)
+	logger.InfoContext(ctx, "provider_request_started", "max_completion_tokens", p.config.MaxCompletionTokens, "schema_bytes", len(p.schema), "reasoning_effort", "low")
 	status := 0
 	stage := "build_request"
+	var headersMS float64
+	var usageReported bool
+	var promptTokens, completionTokens, reasoningTokens, cachedTokens, outputBytes int
+	var finishReason string
 	defer func() {
-		fields := []any{"duration_ms", float64(time.Since(started).Microseconds()) / 1000, "upstream_status", status}
+		fields := []any{
+			"duration_ms", float64(time.Since(started).Microseconds()) / 1000, "upstream_status", status,
+			"headers_ms", headersMS, "usage_reported", usageReported, "prompt_tokens", promptTokens, "completion_tokens", completionTokens,
+			"reasoning_tokens", reasoningTokens, "cached_prompt_tokens", cachedTokens,
+			"output_bytes", outputBytes, "finish_reason", finishReason,
+		}
 		if err != nil {
 			fields = append(fields, "stage", stage, "error_code", asResponse(err).code)
 			level := slog.LevelWarn
@@ -45,10 +62,6 @@ func (p *provider) generate(ctx context.Context, request api.ReviewRequest) (out
 			logger.InfoContext(ctx, "provider_request_completed", fields...)
 		}
 	}()
-	messages, err := reviewMessages(request)
-	if err != nil {
-		return nil, internalError()
-	}
 	type jsonSchemaFormat struct {
 		Name   string          `json:"name"`
 		Strict bool            `json:"strict"`
@@ -88,6 +101,7 @@ func (p *provider) generate(ctx context.Context, request api.ReviewRequest) (out
 	req.Header.Set("Accept", "application/json")
 	stage = "send_request"
 	response, err := p.client.Do(req)
+	headersMS = float64(time.Since(started).Microseconds()) / 1000
 	if err != nil {
 		return nil, transportError(err)
 	}
@@ -107,6 +121,16 @@ func (p *provider) generate(ctx context.Context, request api.ReviewRequest) (out
 	}
 	stage = "decode_envelope"
 	var completion struct {
+		Usage *struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			PromptDetails    struct {
+				CachedTokens int `json:"cached_tokens"`
+			} `json:"prompt_tokens_details"`
+			CompletionDetails struct {
+				ReasoningTokens int `json:"reasoning_tokens"`
+			} `json:"completion_tokens_details"`
+		} `json:"usage"`
 		Choices []struct {
 			FinishReason string `json:"finish_reason"`
 			Message      struct {
@@ -119,10 +143,22 @@ func (p *provider) generate(ctx context.Context, request api.ReviewRequest) (out
 		return nil, failedReview()
 	}
 	stage = "validate_completion"
+	if completion.Usage != nil {
+		usageReported = true
+		promptTokens, completionTokens = completion.Usage.PromptTokens, completion.Usage.CompletionTokens
+		cachedTokens, reasoningTokens = completion.Usage.PromptDetails.CachedTokens, completion.Usage.CompletionDetails.ReasoningTokens
+	}
 	if len(completion.Choices) != 1 {
 		return nil, failedReview()
 	}
 	choice := completion.Choices[0]
+	outputBytes = len(choice.Message.Content)
+	switch choice.FinishReason {
+	case "stop", "length", "content_filter", "tool_calls", "function_call":
+		finishReason = choice.FinishReason
+	default:
+		finishReason = "unknown"
+	}
 	if choice.FinishReason != "stop" || choice.Message.Refusal != nil || strings.TrimSpace(choice.Message.Content) == "" {
 		return nil, failedReview()
 	}

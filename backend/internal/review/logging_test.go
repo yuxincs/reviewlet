@@ -31,7 +31,16 @@ func TestCorrelatedReviewLogs(t *testing.T) {
 				if scenario == "invalid output" {
 					review = `{"language":"javascript","summary":"model-output-secret","findings":null}`
 				}
-				_, _ = w.Write(completion([]byte(review)))
+				envelope := map[string]any{}
+				if err := json.Unmarshal(completion([]byte(review)), &envelope); err != nil {
+					t.Fatal(err)
+				}
+				envelope["usage"] = map[string]any{
+					"prompt_tokens": 200, "completion_tokens": 100,
+					"prompt_tokens_details":     map[string]any{"cached_tokens": 128},
+					"completion_tokens_details": map[string]any{"reasoning_tokens": 20},
+				}
+				_ = json.NewEncoder(w).Encode(envelope)
 			}, time.Second, logger)
 			body := `{"code":"const secret = 'code-secret';","context":"context-secret"}`
 			if scenario == "invalid request" {
@@ -78,6 +87,13 @@ func TestCorrelatedReviewLogs(t *testing.T) {
 			case "success":
 				if events["provider_request_started"] == nil || events["provider_request_completed"]["upstream_status"] != float64(200) || events["review_completed"]["finding_count"] != float64(0) {
 					t.Fatal("missing review/provider success logs")
+				}
+				provider := events["provider_request_completed"]
+				if provider["prompt_tokens"] != float64(200) || provider["completion_tokens"] != float64(100) || provider["reasoning_tokens"] != float64(20) || provider["cached_prompt_tokens"] != float64(128) || provider["headers_ms"] == nil || provider["output_bytes"] == nil || provider["finish_reason"] != "stop" {
+					t.Fatalf("missing provider latency/usage metrics: %+v", provider)
+				}
+				if events["review_completed"]["validation_ms"] == nil || events["review_completed"]["persistence_ms"] == nil {
+					t.Fatal("missing local processing timings")
 				}
 			case "provider failure":
 				failure := events["provider_request_failed"]

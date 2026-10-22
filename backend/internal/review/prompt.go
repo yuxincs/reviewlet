@@ -31,9 +31,10 @@ func reviewMessages(request api.ReviewRequest) ([]message, error) {
 		numbered[i] = sourceLine{Number: i + 1, Text: line}
 	}
 	payload, err := json.Marshal(struct {
-		api.ReviewRequest
-		Lines []sourceLine `json:"lines"`
-	}{ReviewRequest: request, Lines: numbered})
+		Language *string      `json:"language,omitempty"`
+		Context  *string      `json:"context,omitempty"`
+		Lines    []sourceLine `json:"lines"`
+	}{Language: request.Language, Context: request.Context, Lines: numbered})
 	if err != nil {
 		return nil, err
 	}

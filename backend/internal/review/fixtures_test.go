@@ -9,7 +9,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-func exampleReview(t *testing.T) (api.ReviewRequest, api.ReviewResponse, []byte) {
+func exampleReview(t testing.TB) (api.ReviewRequest, api.ReviewResponse, []byte) {
 	t.Helper()
 	source, err := os.ReadFile("../../../api/openapi.yaml")
 	if err != nil {

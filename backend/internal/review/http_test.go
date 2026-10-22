@@ -122,8 +122,15 @@ func TestReviewHTTP(t *testing.T) {
 		if err := json.Unmarshal([]byte(payload.Messages[1].Content), &supplied); err != nil {
 			t.Error(err)
 		}
-		if payload.Messages[1].Role != "user" || supplied.Code != request.Code || supplied.Context == nil || *supplied.Context != *request.Context || len(supplied.Lines) != len(strings.Split(request.Code, "\n")) || supplied.Lines[0].Number != 1 || supplied.Lines[0].Text != strings.Split(request.Code, "\n")[0] {
+		if payload.Messages[1].Role != "user" || supplied.Code != "" || supplied.Context == nil || *supplied.Context != *request.Context || len(supplied.Lines) != len(strings.Split(request.Code, "\n")) || supplied.Lines[0].Number != 1 || supplied.Lines[0].Text != strings.Split(request.Code, "\n")[0] {
 			t.Error("source or context changed in transit")
+		}
+		var source []string
+		for _, line := range supplied.Lines {
+			source = append(source, line.Text)
+		}
+		if strings.Join(source, "\n") != request.Code {
+			t.Error("source lines changed in transit")
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(completion(modelJSON))
@@ -325,7 +332,7 @@ func TestFindingOrder(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	for i, id := range []string{"earlier", "critical", "warning", "info"} {
+	for i, id := range []string{"f4", "f3", "f2", "f1"} {
 		if result.Findings[i].Id != id {
 			t.Fatalf("finding %d: got %s, want %s", i, result.Findings[i].Id, id)
 		}
@@ -346,7 +353,7 @@ func TestProviderRedirectIsNotFollowed(t *testing.T) {
 }
 
 // The API fixture omits optional properties; a strict provider must emit null.
-func structuredFixture(t *testing.T, data []byte) []byte {
+func structuredFixture(t testing.TB, data []byte) []byte {
 	t.Helper()
 	var review map[string]any
 	if err := json.Unmarshal(data, &review); err != nil {
@@ -361,14 +368,28 @@ func structuredFixture(t *testing.T, data []byte) []byte {
 	}
 	for _, findingValue := range review["findings"].([]any) {
 		finding := findingValue.(map[string]any)
+		delete(finding, "id")
+		if edit, ok := finding["edit"].(map[string]any); ok {
+			delete(edit, "original")
+			finding["fix"] = nil
+		}
 		nullable(finding, "edit")
 		for _, stepValue := range finding["steps"].([]any) {
 			step := stepValue.(map[string]any)
 			nullable(step, "links", "flow")
+			if links, ok := step["links"].([]any); ok {
+				for _, link := range links {
+					delete(link.(map[string]any), "endColumn")
+				}
+			}
 			if flow, ok := step["flow"].(map[string]any); ok {
 				nullable(flow, "connections")
 				for _, nodeValue := range flow["nodes"].([]any) {
-					nullable(nodeValue.(map[string]any), "reference", "sampleValue")
+					node := nodeValue.(map[string]any)
+					nullable(node, "reference", "sampleValue")
+					if ref, ok := node["reference"].(map[string]any); ok {
+						delete(ref, "endColumn")
+					}
 				}
 			}
 		}

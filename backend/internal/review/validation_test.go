@@ -94,6 +94,9 @@ func TestUTF16ReferencesAndCRLFEdits(t *testing.T) {
 	if _, err := validateModel(data, code, contract); err != nil {
 		t.Fatal("valid UTF-16 references and exact CRLF edit rejected", err)
 	}
+	if _, err := decodeStructuredReview(structuredFixture(t, data), code, contract); err != nil {
+		t.Fatal("compact output failed to reconstruct UTF-16 columns and CRLF source", err)
+	}
 	model.Findings[0].Edit.Original = "😀\tconst x = 1;"
 	data, _ = json.Marshal(model)
 	if _, err := validateModel(data, code, contract); err == nil {
@@ -177,7 +180,7 @@ func TestStructuredOutputStillEnforcesAPIConstraints(t *testing.T) {
 	structured := structuredFixture(t, canonical)
 	tests := map[string]func(map[string]any){
 		"missing nullable field": func(f map[string]any) { delete(f, "edit") },
-		"required null":          func(f map[string]any) { f["fix"] = nil },
+		"required null":          func(f map[string]any) { f["summary"] = nil },
 		"oversized title":        func(f map[string]any) { f["summary"] = strings.Repeat("x", 161) },
 		"duplicate edges": func(f map[string]any) {
 			flow := f["steps"].([]any)[0].(map[string]any)["flow"].(map[string]any)

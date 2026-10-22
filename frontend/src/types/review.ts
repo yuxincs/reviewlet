@@ -8,6 +8,7 @@ export type Severity = 'high' | 'medium' | 'low';
 export interface ReviewInput {
   title: string;
   language: Language;
+  languageMode?: 'auto' | 'manual';
   code: string;
   context: string;
 }

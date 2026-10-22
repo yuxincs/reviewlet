@@ -42,7 +42,10 @@ func TestPersistsReviewAndDismissalAcrossRestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "workspace.db")
 	store, err := Open(path)
 	check(t, err)
-	saved, err := store.Save(ctx, "snippet", input())
+	draft := input()
+	mode := api.SaveSnippetRequestLanguageMode("manual")
+	draft.LanguageMode = &mode
+	saved, err := store.Save(ctx, "snippet", draft)
 	check(t, err)
 	token, err := store.BeginReview(ctx, request(saved.Id))
 	check(t, err)
@@ -58,11 +61,17 @@ func TestPersistsReviewAndDismissalAcrossRestart(t *testing.T) {
 	if len(snippets) != 1 || snippets[0].ReviewStatus != api.Reviewed || snippets[0].Review.FindingStates["f1"].Status != api.SavedFindingStateStatusDismissed || snippets[0].Version != dismissed.Version {
 		t.Fatalf("state did not persist: %+v", snippets)
 	}
+	if snippets[0].LanguageMode == nil || string(*snippets[0].LanguageMode) != "manual" {
+		t.Fatal("language override did not persist across restart")
+	}
 	renamed := input()
 	renamed.Title = "Renamed"
 	renamed.ExpectedVersion = &dismissed.Version
 	saved, err = store.Save(ctx, "snippet", renamed)
 	check(t, err)
+	if saved.LanguageMode == nil || string(*saved.LanguageMode) != "manual" {
+		t.Fatal("renaming reset the language override")
+	}
 	if saved.Review == nil || saved.Review.FindingStates["f1"].Status != api.SavedFindingStateStatusDismissed {
 		t.Fatal("renaming lost decisions")
 	}

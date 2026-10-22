@@ -54,6 +54,7 @@ async function openServerWorkspace() {
       code: body.code,
       language: body.language,
       context: body.context,
+      languageMode: body.languageMode ?? snippet.languageMode ?? 'auto',
       version: snippet.version + 1,
     });
     return Response.json(snippet);
@@ -131,4 +132,65 @@ it('submits the detected language when review starts before the debounce expires
     expect.objectContaining({ code: python, language: 'python' }),
     expect.any(AbortSignal),
   );
+});
+
+it('persists a manual language across typing and reloads, then resumes detection with Auto', async () => {
+  const { snippets, transport, editor } = await openServerWorkspace();
+  const dropdown = screen.getByRole<HTMLSelectElement>('combobox', {
+    name: 'Snippet language',
+  });
+  expect(dropdown.value).toBe('auto');
+  expect(
+    within(dropdown).queryByRole('option', { name: 'Unknown' }),
+  ).toBeNull();
+  fireEvent.change(editor, { target: { value: python } });
+  fireEvent.change(dropdown, { target: { value: 'typescript' } });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(LANGUAGE_DETECTION_DELAY);
+  });
+  expect(snippets[0]).toMatchObject({
+    language: 'typescript',
+    languageMode: 'manual',
+    code: python,
+  });
+  expect(transport).toHaveBeenCalledTimes(2);
+  fireEvent.change(editor, { target: { value: go } });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(LANGUAGE_DETECTION_DELAY);
+  });
+  expect(dropdown.value).toBe('typescript');
+  expect(transport).toHaveBeenCalledTimes(2);
+  fireEvent.blur(editor);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect(snippets[0]).toMatchObject({
+    language: 'typescript',
+    languageMode: 'manual',
+    code: go,
+  });
+  cleanup();
+  vi.useRealTimers();
+  render(<App api={createReviewApi(undefined, createServerSnippetStore())} />);
+  await screen.findByRole('button', { name: 'Draft' });
+  const restored = screen.getByRole<HTMLSelectElement>('combobox', {
+    name: 'Snippet language',
+  });
+  expect(restored.value).toBe('typescript');
+  vi.useFakeTimers();
+  fireEvent.change(restored, { target: { value: 'auto' } });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect(snippets[0]).toMatchObject({ language: 'go', languageMode: 'auto' });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Code snippet' }), {
+    target: { value: python },
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(LANGUAGE_DETECTION_DELAY);
+  });
+  expect(snippets[0]).toMatchObject({
+    language: 'python',
+    languageMode: 'auto',
+  });
 });

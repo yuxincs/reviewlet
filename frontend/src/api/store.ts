@@ -130,6 +130,9 @@ function isReview(value: unknown): value is Review {
     ['unknown', 'typescript', 'javascript', 'python', 'go'].includes(
       String(value.language),
     ) &&
+    (value.languageMode === undefined ||
+      value.languageMode === 'auto' ||
+      value.languageMode === 'manual') &&
     Array.isArray(value.findings) &&
     value.findings.every(isFinding) &&
     (value.analysis === undefined || isAnalysis(value.analysis)) &&
@@ -228,6 +231,9 @@ export function createSnippetStore(
         title: input.title.trim() || 'Untitled snippet',
         code: input.code,
         language: input.language,
+        ...((input.languageMode ?? existing?.languageMode)
+          ? { languageMode: input.languageMode ?? existing?.languageMode }
+          : {}),
         context: input.context,
       };
       reviews = existing

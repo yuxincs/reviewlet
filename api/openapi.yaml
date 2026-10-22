@@ -190,7 +190,12 @@ components:
       required: [title, language, code, context]
       properties:
         title: { type: string, maxLength: 160 }
-        language: { type: string, enum: [unknown, typescript, javascript, python, go] }
+        language:
+          { type: string, enum: [unknown, typescript, javascript, python, go] }
+        languageMode:
+          type: string
+          enum: [auto, manual]
+          description: Automatic inference or a user override. Defaults to auto for existing snippets; omitted updates preserve the stored setting.
         code: { type: string, maxLength: 30000 }
         context: { type: string, maxLength: 4000 }
         expectedVersion: { type: integer, minimum: 1 }
@@ -222,7 +227,12 @@ components:
           description: UUID assigned when the snippet is created; immutable thereafter.
           pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
         title: { type: string }
-        language: { type: string, enum: [unknown, typescript, javascript, python, go] }
+        language:
+          { type: string, enum: [unknown, typescript, javascript, python, go] }
+        languageMode:
+          type: string
+          enum: [auto, manual]
+          description: Automatic inference or a user override. Defaults to auto for existing snippets; omitted updates preserve the stored setting.
         code: { type: string }
         context: { type: string }
         createdAt: { type: string, format: date-time }

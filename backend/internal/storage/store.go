@@ -209,6 +209,13 @@ func (s *Store) Save(ctx context.Context, id string, input api.SaveSnippetReques
 		snippet.Code = input.Code
 		snippet.Context = input.Context
 		snippet.Language = api.SavedSnippetLanguage(input.Language)
+		if input.LanguageMode != nil {
+			mode := api.SavedSnippetLanguageMode(*input.LanguageMode)
+			snippet.LanguageMode = &mode
+		} else if snippet.LanguageMode == nil {
+			mode := api.SavedSnippetLanguageMode("auto")
+			snippet.LanguageMode = &mode
+		}
 		if input.InitialReview != nil {
 			if err := validReviewState(*input.InitialReview); err != nil {
 				return err

@@ -3,6 +3,7 @@ import { reviewApi } from './api/reviews';
 import { createFlowPalette, FlowColorContext } from './flowColors';
 import { demoSnippet } from './api/demo';
 import { detectLanguage, LANGUAGE_DETECTION_DELAY } from './detectLanguage';
+import { languageLabels } from './languages';
 import { getFindingOverview, getReviewSteps } from './demoReviewGuide';
 import { ReviewPopover, type ReviewAnchor } from './components/ReviewPopover';
 import { ReviewGuide } from './components/ReviewGuide';
@@ -12,7 +13,7 @@ import { applyReviewFix } from './reviewRemapping';
 import { Icon } from './components/Icon';
 import { SnippetSidebar } from './components/SnippetSidebar';
 import { WelcomePage } from './components/WelcomePage';
-import type { Review, ReviewApi, ReviewInput } from './types/review';
+import type { Language, Review, ReviewApi, ReviewInput } from './types/review';
 import './styles.css';
 
 export default function App({ api = reviewApi }: { api?: ReviewApi }) {
@@ -300,6 +301,10 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
 
   function detectPendingLanguage(snippet: Review): Review {
     const pending = pendingDetection.current;
+    if (snippet.languageMode === 'manual') {
+      if (pending?.id === snippet.id) pendingDetection.current = undefined;
+      return snippet;
+    }
     if (pending?.id !== snippet.id || pending.code !== snippet.code)
       return snippet;
     pendingDetection.current = undefined;
@@ -331,7 +336,9 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     return () => clearTimeout(timer);
   }, [activeId, activeSnippet?.code]);
   function changeSnippet(
-    patch: Partial<Pick<Review, 'title' | 'code' | 'language'>>,
+    patch: Partial<
+      Pick<Review, 'title' | 'code' | 'language' | 'languageMode'>
+    >,
   ) {
     if (!activeSnippet) return undefined;
     closeGuide();
@@ -372,6 +379,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       title: 'Untitled snippet',
       code: '',
       language: 'unknown',
+      languageMode: 'auto',
       context: '',
     });
   }
@@ -396,6 +404,17 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     if (!activeSnippet) return;
     const title = activeSnippet.title.trim() || 'Untitled snippet';
     persist(changeSnippet({ title }));
+  }
+
+  function chooseLanguage(value: Language | 'auto') {
+    if (!activeSnippet || busy) return;
+    pendingDetection.current = undefined;
+    const updated = changeSnippet(
+      value === 'auto'
+        ? { languageMode: 'auto', language: detectLanguage(activeSnippet.code) }
+        : { languageMode: 'manual', language: value },
+    );
+    persist(updated);
   }
 
   async function submitReview() {
@@ -545,6 +564,28 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                     }}
                   />
                 </span>
+                <select
+                  className="snippet-language-select"
+                  aria-label="Snippet language"
+                  value={
+                    activeSnippet.languageMode === 'manual'
+                      ? activeSnippet.language
+                      : 'auto'
+                  }
+                  disabled={busy || Boolean(preview)}
+                  onChange={(event) =>
+                    chooseLanguage(event.target.value as Language | 'auto')
+                  }
+                >
+                  <option value="auto">Auto</option>
+                  {Object.entries(languageLabels)
+                    .filter(([value]) => value !== 'unknown')
+                    .map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                </select>
               </>
             ) : (
               <span className="workspace-title">
@@ -651,7 +692,10 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                   onReviewLine={openLineReview}
                   onDismissReview={closeGuide}
                   onChange={(code) => {
-                    if (activeSnippet.code !== code)
+                    if (
+                      activeSnippet.code !== code &&
+                      activeSnippet.languageMode !== 'manual'
+                    )
                       pendingDetection.current = { id: activeSnippet.id, code };
                     changeSnippet({ code });
                   }}

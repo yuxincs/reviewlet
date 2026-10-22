@@ -18,6 +18,7 @@ export function fromSavedSnippet(snippet: SavedSnippet): Review {
     id: snippet.id,
     title: snippet.title,
     language: snippet.language,
+    languageMode: snippet.languageMode ?? 'auto',
     code: snippet.code,
     context: snippet.context,
     createdAt: snippet.createdAt,
@@ -177,6 +178,9 @@ export function createServerSnippetStore(
                     initialCreatedAt: snippet.createdAt,
                     code: snippet.code,
                     language: snippet.language,
+                    ...(snippet.languageMode
+                      ? { languageMode: snippet.languageMode }
+                      : {}),
                     context: snippet.context,
                     ...(snippet.analysis && snippet.guideFindings
                       ? { initialReview: toSavedReview(snippet) }
@@ -209,6 +213,9 @@ export function createServerSnippetStore(
                 code: input.code,
                 context: input.context,
                 language: input.language,
+                ...(input.languageMode
+                  ? { languageMode: input.languageMode }
+                  : {}),
                 ...(known ? { expectedVersion: known.version } : {}),
               },
             }),

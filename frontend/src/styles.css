@@ -1424,6 +1424,25 @@ textarea::placeholder {
   padding: 7px 24px 7px 8px;
   text-overflow: ellipsis;
 }
+.snippet-language-select {
+  flex: 0 0 auto;
+  max-width: 120px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.snippet-language-select:hover:not(:disabled) {
+  color: var(--ink);
+}
+.snippet-language-select:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
 .editor-titlebar .review-snippet-button {
   flex-shrink: 0;
   margin-left: auto;

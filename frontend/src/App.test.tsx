@@ -887,7 +887,7 @@ describe('snippet editor workspace', () => {
       ).toHaveLength(0),
     );
     expect(
-      screen.getByRole('heading', { name: /Smarter reviews/ }),
+      screen.getByRole('heading', { name: /Understand why/ }),
     ).toBeTruthy();
     expect(screen.queryByRole('textbox', { name: 'Code snippet' })).toBeNull();
     expect(await createMockReviewApi(localStorage, 0).listReviews()).toEqual(
@@ -933,14 +933,14 @@ describe('snippet editor workspace', () => {
     localStorage.setItem('reviewlet.mock-reviews.v1', '[]');
     render(<App api={createMockReviewApi(localStorage, 20)} />);
     expect(
-      screen.queryByRole('heading', { name: /Smarter reviews/ }),
+      screen.queryByRole('heading', { name: /Understand why/ }),
     ).toBeNull();
-    await screen.findByRole('heading', { name: /Smarter reviews/ });
+    await screen.findByRole('heading', { name: /Understand why/ });
     expect(screen.queryByRole('textbox', { name: 'Snippet name' })).toBeNull();
     expect(screen.queryByRole('textbox', { name: 'Code snippet' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Create a snippet' }));
     expect(
-      screen.queryByRole('heading', { name: /Smarter reviews/ }),
+      screen.queryByRole('heading', { name: /Understand why/ }),
     ).toBeNull();
     expect(
       screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
@@ -957,7 +957,7 @@ describe('snippet editor workspace', () => {
     render(<App api={api} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Try a demo' }));
     expect(
-      screen.queryByRole('heading', { name: /Smarter reviews/ }),
+      screen.queryByRole('heading', { name: /Understand why/ }),
     ).toBeNull();
     expect(
       screen.getByRole('button', { name: demoSnippet.title }),

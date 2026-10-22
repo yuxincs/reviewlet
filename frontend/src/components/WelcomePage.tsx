@@ -1,4 +1,23 @@
+import { createFlowPalette, flowStyle } from '../flowColors';
 import { Icon } from './Icon';
+
+const exampleValues = [
+  { label: 'percentOff', value: '15' },
+  { label: 'rate', value: '15' },
+  { label: 'discount', value: '112,500¢' },
+];
+const examplePalette = createFlowPalette(exampleValues);
+
+function PreviewSymbol({ name }: { name: string }) {
+  return (
+    <code
+      className="preview-symbol"
+      style={flowStyle({ label: name }, examplePalette)}
+    >
+      {name}
+    </code>
+  );
+}
 
 export function WelcomePage({
   onCreate,
@@ -13,18 +32,31 @@ export function WelcomePage({
         <div className="welcome-copy">
           <div className="welcome-eyebrow">
             <span />
-            AI-POWERED CODE REVIEWS
+            INTELLIGENT CODE REVIEWS
           </div>
           <h1 id="welcome-heading">
-            Small snippets.
+            Find the bug.
             <br />
-            <span>Smarter reviews.</span>
+            <span>Understand why.</span>
           </h1>
           <p className="welcome-description">
-            Find hidden issues, understand the why, and explore better fixes
-            with intelligent code reviews. Paste a snippet. Start a
-            conversation.
+            Catch issues that hide between the lines. Follow the data,
+            understand the impact, and preview a fix, right in your snippet.
           </p>
+          <ul className="welcome-features" aria-label="Review features">
+            <li>
+              <Icon name="clock" size={15} />
+              Findings first. Detailed guides follow.
+            </li>
+            <li>
+              <Icon name="sparkle" size={15} />
+              Trace variables with sample values.
+            </li>
+            <li>
+              <Icon name="code" size={15} />
+              Preview and apply fixes in your code.
+            </li>
+          </ul>
           <div className="welcome-actions">
             <button className="primary-button welcome-cta" onClick={onCreate}>
               Create a snippet
@@ -36,19 +68,21 @@ export function WelcomePage({
             </button>
           </div>
           <div className="welcome-assurance">
-            <Icon name="code" size={13} />
-            No repository needed. Just your code.
+            <Icon name="file" size={13} />
+            No repository needed. Your snippets stay in your workspace.
           </div>
         </div>
         <div className="welcome-visual">
-          <span className="welcome-visual-label">FROM CODE TO CLARITY</span>
+          <span className="welcome-visual-label">
+            FOLLOW THE VALUE. FIND THE CAUSE.
+          </span>
           <figure
             className="welcome-preview"
-            aria-label="Illustrative intelligent code review"
+            aria-label="Illustrative review tracing an incorrect percentage discount"
           >
             <div className="preview-titlebar">
               <Icon name="file" size={15} />
-              <span>find-user.ts</span>
+              <span>checkout-quote.ts</span>
               <span className="preview-tag">REVIEW PREVIEW</span>
             </div>
             <pre className="preview-code">
@@ -57,73 +91,97 @@ export function WelcomePage({
                   <span className="preview-line-number" aria-hidden="true">
                     1
                   </span>
-                  <span className="token-keyword">const</span>
-                  {' query =\n'}
-                </span>
-                <span className="preview-line preview-line-flagged">
-                  <span className="preview-line-number" aria-hidden="true">
-                    2
-                  </span>
-                  {'  '}
-                  <span className="token-string">
-                    {'`SELECT * FROM users WHERE id = ${id}`'}
-                  </span>
-                  {';\n'}
+                  <span className="token-keyword">const</span>{' '}
+                  <PreviewSymbol name="percentOff" />
+                  {' = 15;\n'}
                 </span>
                 <span className="preview-line">
                   <span className="preview-line-number" aria-hidden="true">
+                    2
+                  </span>
+                  <span className="token-keyword">const</span>
+                  {' subtotal = 7500;\n'}
+                </span>
+                <span className="preview-line preview-line-flagged">
+                  <span className="preview-line-number" aria-hidden="true">
                     3
                   </span>
-                  <span className="token-keyword">return</span>
-                  {' db.query(query);'}
+                  <span className="token-keyword">const</span>{' '}
+                  <PreviewSymbol name="rate" />
+                  {' = '}
+                  <PreviewSymbol name="percentOff" />
+                  {';\n'}
+                </span>
+                <span className="preview-line preview-line-flagged">
+                  <span className="preview-line-number" aria-hidden="true">
+                    4
+                  </span>
+                  <span className="token-keyword">const</span>{' '}
+                  <PreviewSymbol name="discount" />
+                  {' = subtotal * '}
+                  <PreviewSymbol name="rate" />
+                  {';'}
                 </span>
               </code>
             </pre>
             <div className="preview-finding">
               <div className="preview-finding-meta">
                 <span>
-                  <Icon name="shield" size={12} />
-                  Security
+                  <Icon name="info" size={12} />
+                  Warning · Bug
                 </span>
-                <span>Line 2</span>
+                <span>Lines 3–4</span>
               </div>
-              <h2>User input reaches the SQL query.</h2>
-              <p>
-                Interpolating input can allow SQL injection. Bind the value as a
-                parameter to keep data separate from the query.
-              </p>
-              <div className="preview-suggestion">
-                <span>SUGGESTED FIX</span>
-                <code>
-                  {"db.query('SELECT * FROM users WHERE id = $1', [id]);"}
-                </code>
-              </div>
+              <h2>A percentage becomes a multiplier.</h2>
               <div
-                className="preview-review-actions"
-                aria-label="Example review actions"
+                className="preview-value-flow"
+                aria-label="Example values: percentOff 15 flows into rate 15, producing discount 112,500 cents"
               >
-                <span>
-                  <Icon name="check" size={12} />
-                  Accept
-                </span>
-                <span>
-                  <Icon name="close" size={12} />
-                  Dismiss
-                </span>
-                <span>
-                  <Icon name="message" size={12} />
-                  Discuss
-                </span>
+                {exampleValues.map((node, index) => (
+                  <span
+                    className="preview-flow-group"
+                    key={node.label}
+                    style={flowStyle(node, examplePalette)}
+                  >
+                    {index > 0 && <Icon name="arrow" size={13} />}
+                    <span
+                      className="preview-flow-value"
+                      style={flowStyle(node, examplePalette)}
+                    >
+                      <PreviewSymbol name={node.label} />
+                      <strong>{node.value}</strong>
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <ol className="preview-steps">
+                <li>
+                  <PreviewSymbol name="rate" /> gets 15 instead of 0.15.
+                </li>
+                <li>
+                  <PreviewSymbol name="discount" /> is 100× too large: 112,500¢
+                  instead of 1,125¢.
+                </li>
+              </ol>
+              <div className="preview-suggestion">
+                <span>PREVIEW FIX</span>
+                <code>
+                  <span className="token-keyword">const</span>{' '}
+                  <PreviewSymbol name="rate" />
+                  {' = '}
+                  <PreviewSymbol name="percentOff" />
+                  {' / 100;'}
+                </code>
               </div>
             </div>
             <figcaption>
-              Illustrative review · AI integration coming soon
+              <span>
+                <Icon name="check" size={12} />
+                Illustrative guide
+              </span>
+              <span>Guides arrive as they’re ready.</span>
             </figcaption>
           </figure>
-          <div className="welcome-preview-note">
-            <Icon name="sparkle" size={15} />
-            <span>Understand the why. Decide what comes next.</span>
-          </div>
         </div>
       </div>
     </section>

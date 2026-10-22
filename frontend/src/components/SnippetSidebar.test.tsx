@@ -1,5 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react';
 import { SnippetSidebar } from './SnippetSidebar';
 import type { Review } from '../types/review';
 
@@ -41,7 +47,24 @@ it('combines filters and clears them without selecting another snippet', () => {
       onToggle={vi.fn()}
     />,
   );
-  expect(document.querySelector('time')?.dateTime).toBe(snippets[0].createdAt);
+  const draft = screen.getByRole('button', { name: 'Go draft' });
+  expect(within(draft).getByText('Go · Unreviewed')).toBeTruthy();
+  expect(
+    within(screen.getByRole('button', { name: 'Go reviewed' })).getByText(
+      'Go · Reviewed',
+    ),
+  ).toBeTruthy();
+  const time = draft.querySelector('time')!;
+  expect(time.dateTime).toBe(snippets[0].createdAt);
+  expect(time.textContent).toBe(
+    new Date(snippets[0].createdAt).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }),
+  );
   fireEvent.change(screen.getByLabelText('Filter by language'), {
     target: { value: 'go' },
   });
@@ -80,6 +103,11 @@ it('uses the live reviewing state when filtering', () => {
       onToggle={vi.fn()}
     />,
   );
+  expect(
+    within(screen.getByRole('button', { name: 'Go draft' })).getByText(
+      'Go · Reviewing',
+    ),
+  ).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Filter by review status'), {
     target: { value: 'reviewing' },
   });

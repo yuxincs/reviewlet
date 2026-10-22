@@ -165,18 +165,25 @@ export function SnippetSidebar({
                   <span className="sidebar-text snippet-item-text">
                     <span>{review.title}</span>
                     <small>
-                      {reviewingId === review.id
-                        ? 'Reviewing…'
-                        : languageLabels[review.language]}
-                      {' · '}
+                      <span className="snippet-item-status">
+                        {languageLabels[review.language]} ·{' '}
+                        {
+                          reviewStatusLabels[
+                            getReviewStatus(review, reviewingId)
+                          ]
+                        }
+                      </span>
                       <time
                         dateTime={review.createdAt}
                         title={new Date(review.createdAt).toLocaleString()}
                       >
-                        {new Date(review.createdAt).toLocaleDateString(
-                          undefined,
-                          { month: 'short', day: 'numeric', year: 'numeric' },
-                        )}
+                        {new Date(review.createdAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
                       </time>
                     </small>
                   </span>

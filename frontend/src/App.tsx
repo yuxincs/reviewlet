@@ -138,7 +138,10 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       items.map((item) => (item.id === updated.id ? updated : item)),
     );
     try {
-      await api.saveReviewRevision(updated, before.code);
+      const saved = await api.saveReviewRevision(updated, before.code);
+      setSnippets((items) =>
+        items.map((item) => (item.id === saved.id ? saved : item)),
+      );
       setUndoFix({ snippetId: before.id, before, appliedCode: updated.code });
       setReviewNotice('Fix applied. Remaining findings updated.');
     } catch (reason) {
@@ -176,7 +179,10 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       items.map((item) => (item.id === restored.id ? restored : item)),
     );
     try {
-      await api.saveReviewRevision(restored, applied.code);
+      const saved = await api.saveReviewRevision(restored, applied.code);
+      setSnippets((items) =>
+        items.map((item) => (item.id === saved.id ? saved : item)),
+      );
       setReviewNotice('Fix undone. Previous review restored.');
     } catch (reason) {
       setSnippets((items) =>
@@ -207,6 +213,32 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     setExplanationStep(-1);
     setGuideAnchor(anchor);
     setGuideOpen(true);
+  }
+
+  async function dismissFinding() {
+    if (!activeSnippet || !activeFinding || busy) return;
+    setSavingFix(true);
+    setError('');
+    try {
+      const updated = await api.updateFinding(
+        activeSnippet.id,
+        activeFinding.id,
+        'dismissed',
+      );
+      setSnippets((items) =>
+        items.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      closeGuide();
+      setReviewNotice('Finding dismissed.');
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Could not dismiss this finding.',
+      );
+    } finally {
+      setSavingFix(false);
+    }
   }
 
   useEffect(() => {
@@ -317,7 +349,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       findings: [],
       createdAt: new Date().toISOString(),
     };
-    setSnippets((items) => [snippet, ...items].slice(0, 20));
+    setSnippets((items) => [snippet, ...items]);
     setActiveId(snippet.id);
     setError('');
     persist(snippet);
@@ -636,6 +668,9 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                         setExplanationStep(index);
                       }}
                       onClose={closeGuide}
+                      onDismiss={() => {
+                        void dismissFinding();
+                      }}
                     />
                   </ReviewPopover>
                 )}

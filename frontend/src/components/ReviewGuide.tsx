@@ -9,12 +9,14 @@ export function ReviewGuide({
   onStep,
   onClose,
   onPreview,
+  onDismiss,
 }: {
   finding: GuideFinding;
   activeStep: number;
   onStep: (index: number) => void;
   onClose: () => void;
   onPreview?: () => void;
+  onDismiss?: () => void;
 }) {
   const symbols = finding.steps.flatMap((step) => [
     ...(step.flow?.nodes ?? []),
@@ -149,12 +151,19 @@ export function ReviewGuide({
           </>
         )}
       </div>
-      {onPreview && (
+      {(onPreview || onDismiss) && (
         <footer className="guide-fix-actions">
-          <button className="primary-button" onClick={onPreview}>
-            <Icon name="code" size={16} />
-            Preview fix
-          </button>
+          {onDismiss && (
+            <button className="secondary-button" onClick={onDismiss}>
+              Dismiss finding
+            </button>
+          )}
+          {onPreview && (
+            <button className="primary-button" onClick={onPreview}>
+              <Icon name="code" size={16} />
+              Preview fix
+            </button>
+          )}
         </footer>
       )}
     </section>

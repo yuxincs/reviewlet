@@ -154,3 +154,44 @@ it('shows a backend error with its request ID, keeps the source, and allows retr
   expect(screen.queryByRole('alert')).toBeNull();
   expect(await api.listReviews()).toHaveLength(1);
 });
+
+it('dismisses a finding from the guide and keeps the decision after reloading the saved review', async () => {
+  const response: ReviewResponse = {
+    id: 'dismiss-review',
+    createdAt: '2026-10-22T00:00:00Z',
+    codeHash: createHash('sha256').update(snippet.code).digest('hex'),
+    language: 'typescript',
+    summary: 'Guard empty input.',
+    findings: [
+      {
+        id: 'dismiss-finding',
+        summary: 'Empty input',
+        description: 'The first item can be undefined.',
+        severity: 'warning',
+        category: 'bug',
+        lineStart: 2,
+        lineEnd: 2,
+        steps: [{ description: 'Check length first.' }],
+        fix: '',
+      },
+    ],
+  };
+  apiClient.setConfig({
+    fetch: vi.fn<typeof fetch>().mockResolvedValue(Response.json(response)),
+  });
+  const api = createReviewApi(localStorage);
+  await api.saveSnippet('dismiss-snippet', snippet);
+  await api.reviewSnippet('dismiss-snippet', snippet);
+  render(<App api={api} />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Show review for line 2' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss finding' }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', { name: 'Show review for line 2' }),
+    ).toBeNull(),
+  );
+  const [saved] = await createReviewApi(localStorage).listReviews();
+  expect(saved.findings[0].status).toBe('dismissed');
+});

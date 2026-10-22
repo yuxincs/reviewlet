@@ -8,7 +8,8 @@ import { CodeHighlight } from './CodeHighlight';
 import type { GuideRange, GuideFlowNode } from '../demoReviewGuide';
 import { languageLabels } from '../languages';
 import { Icon } from './Icon';
-import type { CodeEdit } from '../codeEdits';
+import { applyCodeEdit, type CodeEdit } from '../codeEdits';
+import { useSyntaxTokens } from '../syntax/useSyntaxTokens';
 
 export function CodeEditor({
   code,
@@ -58,6 +59,11 @@ export function CodeEditor({
     undefined,
   );
   const lines = code.split('\n');
+  const syntax = useSyntaxTokens(code, language);
+  const proposedCode = fixPreview
+    ? (applyCodeEdit(code, fixPreview.edit) ?? '')
+    : '';
+  const proposedSyntax = useSyntaxTokens(proposedCode, language);
   const added = fixPreview?.edit.replacement
     ? fixPreview.edit.replacement.split('\n')
     : [];
@@ -295,6 +301,11 @@ export function CodeEditor({
                 )}
                 <CodeHighlight
                   line={row.text}
+                  tokens={
+                    (row.kind === 'added' ? proposedSyntax : syntax)[
+                      row.number - 1
+                    ]
+                  }
                   ranges={
                     fixPreview
                       ? []

@@ -542,7 +542,9 @@ describe('snippet editor workspace', () => {
     ).toBe(false);
     expect(preview.querySelectorAll('.fix-diff-removed')).toHaveLength(3);
     expect(preview.querySelectorAll('.fix-diff-added')).toHaveLength(4);
-    expect(preview.querySelector('.token-keyword')).toBeTruthy();
+    await waitFor(() =>
+      expect(preview.querySelector('.token-keyword')).toBeTruthy(),
+    );
     expect(
       document.querySelector('.data-flow-overlay, .code-samples'),
     ).toBeNull();

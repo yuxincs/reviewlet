@@ -397,8 +397,25 @@ textarea::placeholder {
   color: var(--syntax-comment);
   font-style: italic;
 }
-.token-number {
+.token-number,
+.token-constant {
   color: var(--syntax-number);
+}
+.token-type,
+.token-namespace,
+.token-tag {
+  color: #83d8c5;
+}
+.token-function {
+  color: var(--accent-text);
+}
+.token-property,
+.token-variable {
+  color: var(--code);
+}
+.token-operator,
+.token-punctuation {
+  color: var(--body);
 }
 .editor-placeholder {
   position: absolute;

@@ -8,6 +8,25 @@ backend/    Go HTTP server
 api/        OpenAPI specification (source of truth for the HTTP contract)
 ```
 
+## Evaluation server
+
+Install frontend dependencies once with `cd frontend && npm ci`. Then, from the
+repository root, export your provider credentials and run:
+
+```sh
+export OPENAI_API_KEY="your-api-key"
+make run
+```
+
+`make run` builds the production frontend and Go binary, then serves the site and
+`/api` together at **http://localhost:8080** in one terminal. Open that URL for
+evaluations; press **Ctrl+C** to shut down the server. There is no separate Vite
+process. Provider settings, `LISTEN_ADDR`, and `DATABASE_PATH` use the normal
+backend configuration; the database defaults to `backend/data/reviewlet.db`.
+Re-run `make run` after changing code to rebuild. To serve an existing build
+without rebuilding, run `cd backend && FRONTEND_DIST=../frontend/dist ./bin/server`.
+With `FRONTEND_DIST` unset, the backend continues to serve the API only.
+
 ## Frontend
 
 With a current Node.js LTS release and npm installed:

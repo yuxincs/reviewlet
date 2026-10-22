@@ -15,6 +15,7 @@ import (
 	"github.com/yuxincs/reviewlet/backend/internal/logging"
 	"github.com/yuxincs/reviewlet/backend/internal/review"
 	"github.com/yuxincs/reviewlet/backend/internal/storage"
+	"github.com/yuxincs/reviewlet/backend/internal/web"
 )
 
 func main() {
@@ -52,8 +53,15 @@ func run(logger *slog.Logger) error {
 	if address == "" {
 		address = ":8080"
 	}
+	handler := service.Handler()
+	if directory := os.Getenv("FRONTEND_DIST"); directory != "" {
+		handler, err = web.Handler(handler, directory)
+		if err != nil {
+			return fmt.Errorf("serve frontend: %w", err)
+		}
+	}
 	server := &http.Server{
-		Addr: address, Handler: service.Handler(),
+		Addr: address, Handler: handler,
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
 		WriteTimeout: config.Timeout + 10*time.Second, IdleTimeout: 60 * time.Second,
@@ -67,6 +75,11 @@ func run(logger *slog.Logger) error {
 	result := make(chan error, 1)
 	go func() { result <- server.Serve(listener) }()
 	logger.Info("server_started", "address", listener.Addr().String(), "model", config.Model, "detail_model", config.DetailModel, "review_timeout_ms", config.Timeout.Milliseconds())
+	if os.Getenv("FRONTEND_DIST") != "" {
+		if _, port, err := net.SplitHostPort(listener.Addr().String()); err == nil {
+			_, _ = fmt.Fprintf(os.Stdout, "\n\x1b[1mOpen http://localhost:%s in your browser.\x1b[0m\n\n", port)
+		}
+	}
 	select {
 	case err := <-result:
 		if errors.Is(err, http.ErrServerClosed) {

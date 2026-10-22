@@ -1,7 +1,7 @@
 GOLANGCI_VERSION := $(shell cat .golangciversion)
 GOLANGCI_LINT := $(CURDIR)/backend/bin/golangci-lint
 
-.PHONY: check frontend-check backend-check backend-lint backend-format-check backend-format backend-test install-golangci-lint install-hooks build frontend-build backend-build backend-run generate frontend-generate backend-generate
+.PHONY: run check frontend-check backend-check backend-lint backend-format-check backend-format backend-test install-golangci-lint install-hooks build frontend-build backend-build backend-run generate frontend-generate backend-generate
 
 check: frontend-check backend-check
 
@@ -70,3 +70,7 @@ backend-build: backend-generate
 backend-run: backend-generate
 	@echo "==> Backend: run server"
 	cd backend && go run ./cmd/server
+
+run: build
+	@echo "==> Running production frontend and API together (default: http://localhost:8080; Ctrl+C to stop)"
+	cd backend && FRONTEND_DIST="$(CURDIR)/frontend/dist" ./bin/server

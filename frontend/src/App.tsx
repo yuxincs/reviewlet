@@ -1,3 +1,6 @@
+import { SidebarResizer } from './components/SidebarResizer';
+import { useSidebarWidth } from './useSidebarWidth';
+import type { CSSProperties } from 'react';
 import { getReviewStatus } from './reviewStatus';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { reviewApi } from './api/reviews';
@@ -33,6 +36,9 @@ export default function App({
     }
     return window.matchMedia?.('(max-width: 700px)')?.matches ?? false;
   });
+  const sidebarWidth = useSidebarWidth();
+  const [resizingSidebar, setResizingSidebar] = useState(false);
+  const [sidebarDragWidth, setSidebarDragWidth] = useState<number>();
   const [snippets, setSnippets] = useState<Review[]>([]);
   const [activeId, setActiveId] = useState<string>();
   const [loading, setLoading] = useState(true);
@@ -613,7 +619,16 @@ export default function App({
 
   return (
     <div
-      className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
+      className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${resizingSidebar ? 'sidebar-resizing' : ''}`}
+      style={
+        {
+          '--sidebar-expanded-width': `${sidebarWidth.width}px`,
+          '--sidebar-width':
+            sidebarDragWidth === undefined
+              ? undefined
+              : `${sidebarDragWidth}px`,
+        } as CSSProperties
+      }
       onKeyDown={(event) => {
         if (
           event.key === 'Enter' &&
@@ -644,6 +659,22 @@ export default function App({
         }}
         onCollapse={() => setSidebar(true)}
         onToggle={() => setSidebar(!sidebarCollapsed)}
+      />
+      <SidebarResizer
+        collapsed={sidebarCollapsed}
+        onExpand={() => setSidebar(false)}
+        width={sidebarWidth.width}
+        displayedWidth={
+          sidebarDragWidth ?? (sidebarCollapsed ? 72 : sidebarWidth.width)
+        }
+        onDragWidth={setSidebarDragWidth}
+        maxWidth={sidebarWidth.maxWidth}
+        onChange={sidebarWidth.setWidth}
+        onResizingChange={(resizing) => {
+          setResizingSidebar(resizing);
+          if (!resizing) setSidebarDragWidth(undefined);
+        }}
+        onCollapse={() => setSidebar(true)}
       />
       {!sidebarCollapsed && (
         <button

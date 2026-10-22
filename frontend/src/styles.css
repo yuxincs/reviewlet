@@ -1000,7 +1000,7 @@ textarea::placeholder {
 
 /* The snippet library stays available as a compact icon rail when collapsed. */
 .app-layout {
-  --sidebar-width: 360px;
+  --sidebar-width: var(--sidebar-expanded-width, 360px);
   min-height: 100vh;
 }
 .app-layout.sidebar-collapsed {
@@ -1128,6 +1128,8 @@ textarea::placeholder {
 }
 .snippet-library {
   overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
   min-height: 0;
   flex: 1;
   padding: 4px 2px;
@@ -1252,6 +1254,8 @@ textarea::placeholder {
 }
 .sidebar-collapsed .snippet-item {
   min-height: 42px;
+  padding-inline: 0;
+  justify-content: center;
 }
 .sidebar-collapsed .snippet-item-text {
   max-height: 20px;
@@ -1640,7 +1644,7 @@ textarea::placeholder {
   background: var(--error-background);
 }
 .sidebar-collapsed .snippet-row .snippet-item {
-  padding-right: 14px;
+  padding-inline: 0;
 }
 .sidebar-collapsed .snippet-delete {
   right: 0;
@@ -2698,5 +2702,43 @@ textarea::placeholder {
   .pending-finding-range rect,
   .review-detail-spinner {
     animation: none;
+  }
+}
+
+.sidebar-resizer {
+  position: fixed;
+  inset: 0 auto 0 calc(var(--sidebar-width) - 4px);
+  width: 8px;
+  z-index: 21;
+  cursor: col-resize;
+  touch-action: none;
+  transition: left 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  background: var(--accent-text);
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.sidebar-resizing .sidebar-resizer::after {
+  opacity: 1;
+}
+.sidebar-resizing,
+.sidebar-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
+}
+.sidebar-resizing .snippet-sidebar,
+.sidebar-resizing .sidebar-resizer,
+.sidebar-resizing .app-main {
+  transition: none;
+}
+@media (max-width: 700px) {
+  .sidebar-resizer {
+    display: none;
   }
 }

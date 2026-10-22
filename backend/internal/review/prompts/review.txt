@@ -45,28 +45,56 @@ Locations and symbol identity
   must select exactly its symbol on one existing line. Never reference a symbol
   or line that exists only in a proposed fix.
 - Set lineStart/lineEnd to the smallest useful affected range, inclusively.
-- Optional links identify occurrences to highlight in a step. Use symbolId as a
-  consistent, scope-qualified binding identity throughout the review. Distinct
-  bindings and members (e.g. query vs db.query) must use distinct IDs. Roles are
-  source, transform, or sink for that step. Omit links you cannot map exactly.
+- Populate links for the exact source occurrences discussed by each step,
+  including its referenced flow nodes. These links drive editor highlights and
+  symbol colors; mentioning a symbol in prose alone does not highlight it.
+  Use symbolId as a consistent, scope-qualified binding identity throughout the
+  review. Distinct bindings and members (e.g. query vs db.query) must use distinct
+  IDs. Roles are source, transform, or sink for that step. Omit only the links
+  you cannot map exactly, rather than dropping all links from a finding.
 
 Data flow and illustrative values
-- Include a step's flow when it helps explain movement/transformation of data.
-  Each flow has kind current or proposed, and at least two nodes in semantic
-  flow order. Give every node a concise label. Add a reference only for an exact
-  occurrence in the submitted source; conceptual nodes may omit reference.
+- Source-linked explanations are a core part of the review, not decorative
+  extras. For each finding caused by data movement or transformation (such as
+  injection, lost values, or incorrect arithmetic), include a current flow in
+  at least one explanation step whenever the source exposes two connected
+  occurrences. Do not return prose-only steps for such a finding when those
+  references can be mapped accurately. Flow may be null when the issue has no
+  meaningful data dependency or its endpoints are not present in the snippet.
+- Walk from the relevant input through the intermediate assignments, collection
+  operations, or calculations to the affected use or result. Each step's flow
+  should show the portion its description explains. Together the current flows
+  should explain the finding's causal path; do not jump over transformations
+  that are essential to understanding the bug. Keep unrelated variables out.
+- Each flow has kind current or proposed, and at least two nodes in semantic
+  flow order. Give every node a concise label. Map nodes to exact occurrences
+  in the submitted source with reference; drawable edges require references at
+  BOTH endpoints. Conceptual nodes may omit reference, but do not substitute
+  conceptual nodes for source occurrences that are available.
 - If connections is omitted, adjacent nodes connect (0->1, 1->2, etc.). For
   branches, specify explicit from/to zero-based node indices. Indices must be
   distinct and in bounds; never duplicate an edge. [] explicitly means no edges.
+  Use real dependency edges, not an arbitrary chain of all mentioned symbols.
+  A conceptual node between mapped nodes does not produce editor arrows; retain
+  any independently supported direct source-to-source edges explicitly.
   Do not invent code references to make abstract nodes drawable in the editor.
 - Keep existing behavior and proposed behavior in separate flows. Proposed
   flows may reference original code only where that occurrence actually exists.
 - When a concrete input clarifies a bug, carry ONE small fictional example
-  consistently through the finding's steps. Optional sampleValue is a STRING
+  consistently through the finding's steps. Add sampleValue to the relevant
+  source-linked nodes so values appear beside code, not just in prose. Compute
+  intermediate values consistently with the CURRENT buggy code; distinguish
+  them from expected values explained in the text or a proposed flow.
+  Optional sampleValue is a STRING
   containing a readable code literal: "[]", "undefined", "null", or a quoted
   string value. Keep values short. Distinguish a variable's value from a call's
   result. Omit unknown external results and unhelpful examples. Never use actual
   personal data or secrets. Values are illustrative, not execution results.
+- Before returning, check that each data-dependent finding has a current flow
+  with at least one edge between two exact source references where available,
+  that its steps have the relevant highlight links, and that sample values
+  agree across steps. Never satisfy this check by fabricating dependencies,
+  source locations, or external values.
 
 Suggested changes
 - fix is code text without Markdown fences, or "" if no concrete suggestion is

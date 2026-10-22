@@ -2,6 +2,682 @@ openapi: 3.1.0
 info:
   title: Reviewlet API
   version: 0.1.0
+  description: |
+    AI-powered review of an ad-hoc code snippet. POST /api/v1/review returns
+    a complete review synchronously; it does not create or update a saved snippet.
+    Finding locations, symbol references, and suggested edits refer to the exact
+    submitted code. Acceptance, dismissal, local fix remapping, and discussion
+    state are separate from this initial review response.
 servers:
   - url: http://localhost:8080
-paths: {}
+    description: Local development server
+tags:
+  - name: Reviews
+    description: Analyze a code snippet and explain actionable findings.
+paths:
+  /api/v1/review:
+    post:
+      operationId: reviewSnippet
+      tags: [Reviews]
+      summary: Review a code snippet
+      description: |
+        Analyze the supplied code and return findings with concise descriptions,
+        explanation steps, optional symbol links and data flows, illustrative
+        values, and optional exact replacement edits. Code is reviewed as text;
+        example inputs are illustrative and are not executed.
+
+        A successful review with no findings returns 200 with an empty findings
+        array. Do not encode provider failures, timeouts, or invalid structured
+        model output as a successful empty review.
+
+        The service preserves the submitted source without Unicode or line-ending
+        normalization. All line numbers are one-based and refer to lines split at
+        LF. Column numbers are one-based UTF-16 code-unit offsets, with an
+        exclusive endColumn, matching browser string slicing. Tabs count as one
+        code unit, not their rendered width. All references must lie within the
+        submitted source and select the stated symbol exactly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewRequest"
+            examples:
+              sqlInjection:
+                $ref: "#/components/examples/SqlInjectionRequest"
+              noFindings:
+                $ref: "#/components/examples/NoFindingsRequest"
+      responses:
+        "200":
+          description: A completed review of the submitted code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewResponse"
+              examples:
+                sqlInjection:
+                  $ref: "#/components/examples/SqlInjectionResponse"
+                noFindings:
+                  $ref: "#/components/examples/NoFindingsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "502":
+          $ref: "#/components/responses/ReviewFailed"
+        "503":
+          $ref: "#/components/responses/ReviewUnavailable"
+        "504":
+          $ref: "#/components/responses/ReviewTimeout"
+components:
+  schemas:
+    ReviewRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 30000
+          pattern: '\S'
+          description: |
+            Exact source text to review, containing at least one non-whitespace
+            character. The service also enforces the editor's limit of 30,000
+            UTF-16 code units; non-BMP characters use two code units each.
+        language:
+          type: string
+          minLength: 1
+          maxLength: 64
+          pattern: "^[a-z][a-z0-9_+.#-]*$"
+          description: |
+            Optional language identifier, such as typescript, javascript, python,
+            go, or rust. When omitted, the service infers the language. Identifiers
+            are open-ended rather than limited to the frontend's current presets.
+          examples: [typescript, python, go]
+        context:
+          type: string
+          maxLength: 4000
+          description: Optional intended behavior, assumptions, or areas to examine.
+          examples: [An API handler that looks up a user by ID.]
+    ReviewResponse:
+      type: object
+      additionalProperties: false
+      required: [id, createdAt, codeHash, language, summary, findings]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Server-assigned identifier for this review result.
+        createdAt:
+          type: string
+          format: date-time
+          description: Time the review result was produced, in RFC 3339 format.
+        codeHash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: |
+            Lowercase hexadecimal SHA-256 digest of the exact request code encoded
+            as UTF-8, without normalization. Clients use it to avoid displaying a
+            response against a newer version of the snippet.
+        language:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Language used for analysis; unknown if it cannot be inferred.
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Brief overall review summary, including when no findings were identified.
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewFinding"
+          description: |
+            Findings ordered by source location, then severity at the same
+            location. An empty array means the completed review found no issues;
+            it is not a guarantee of correctness. Finding IDs must be unique in
+            this result; IDs are not guaranteed stable across separate requests.
+    ReviewFinding:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          summary,
+          description,
+          severity,
+          category,
+          lineStart,
+          lineEnd,
+          steps,
+          fix,
+        ]
+      description: |
+        One finding using the interactive review guide's vocabulary. All findings
+        in a fresh result are current and open. Client workflow fields such as
+        accepted, dismissed, resolved, or needs-recheck are not model output.
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Unique identifier within this review.
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Concise, one-line bug title, distinct from the description.
+        description:
+          type: string
+          minLength: 1
+          maxLength: 600
+          description: |
+            One to three concise sentences describing the issue and its impact.
+            Use single backticks around code symbols or expressions for inline
+            code formatting. Other text is plain text, not HTML.
+        severity:
+          type: string
+          enum: [critical, warning, info]
+          description: |
+            critical indicates serious correctness or security impact; warning
+            indicates a material issue; info indicates a lower-impact improvement.
+        category:
+          type: string
+          enum: [bug, style, performance, security]
+        lineStart:
+          type: integer
+          minimum: 1
+          description: First affected source line, inclusive.
+        lineEnd:
+          type: integer
+          minimum: 1
+          description: Last affected source line, inclusive; at least lineStart.
+        steps:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/ExplanationStep"
+          description: Ordered explanation, from the cause through the consequence and fix.
+        fix:
+          type: string
+          maxLength: 30000
+          description: |
+            Suggested code for the finding, without Markdown fences. This can be
+            an illustrative fragment and is not applied automatically. Use an
+            empty string when no concrete code suggestion is available. Only an
+            accompanying edit defines an exact, applicable replacement.
+        edit:
+          $ref: "#/components/schemas/CodeEdit"
+    ExplanationStep:
+      type: object
+      additionalProperties: false
+      required: [description]
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: |
+            Prefer a single concise sentence explaining this step. Code symbols
+            and expressions may be enclosed in single backticks; no raw HTML.
+        links:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SymbolReference"
+          description: Optional code occurrences to highlight while explaining this step.
+        flow:
+          $ref: "#/components/schemas/DataFlow"
+    SymbolReference:
+      type: object
+      additionalProperties: false
+      required: [symbolId, symbol, line, startColumn, endColumn, role]
+      description: |
+        An exact, single-line occurrence in the submitted source. The substring
+        from startColumn through endColumn (exclusive) must equal symbol.
+        endColumn must exceed startColumn. Multi-line expressions use separate
+        references for their relevant single-line portions.
+      properties:
+        symbolId:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: |
+            Binding identity, consistent across this review's steps and findings.
+            Occurrences of the same binding share an ID; distinct bindings or
+            members such as query and db.query have different IDs. Distinguish
+            same-named variables in different scopes. Used for consistent colors.
+        symbol:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Exact source substring, such as userId, db.query, or SELECT *.
+        line:
+          type: integer
+          minimum: 1
+        startColumn:
+          type: integer
+          minimum: 1
+          description: One-based UTF-16 code-unit offset, inclusive.
+        endColumn:
+          type: integer
+          minimum: 2
+          description: One-based UTF-16 code-unit offset, exclusive.
+        role:
+          type: string
+          enum: [source, transform, sink]
+          description: Semantic role in this step; it need not be displayed as a UI label.
+    DataFlow:
+      type: object
+      additionalProperties: false
+      required: [kind, nodes]
+      properties:
+        kind:
+          type: string
+          enum: [current, proposed]
+          description: |
+            current describes existing behavior; proposed describes a suggested
+            fix. Keep the two separate. Proposed nodes can reference existing
+            code only where it actually exists in the submitted snippet.
+        nodes:
+          type: array
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/FlowNode"
+          description: |
+            Nodes in semantic data-flow order, not necessarily source line order.
+            Nodes may represent mapped symbols or unmapped conceptual operations.
+        connections:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/FlowConnection"
+          description: |
+            Optional explicit directed edges for branches or non-linear flows.
+            If omitted, connect each adjacent node pair (0 to 1, 1 to 2, etc.).
+            An empty array explicitly means no edges. Never draw an editor arrow
+            unless both endpoints have valid code references; an unmapped node
+            must not cause a fabricated shortcut to a later mapped node.
+    FlowNode:
+      type: object
+      additionalProperties: false
+      required: [label]
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Short explanation of the value or operation at this point.
+        reference:
+          $ref: "#/components/schemas/SymbolReference"
+        sampleValue:
+          type: string
+          maxLength: 1000
+          description: |
+            Optional illustrative value at this point in this step. Format as a
+            readable code literal, quoting strings and spelling null or undefined
+            explicitly. For example, the JSON string "[]" represents an empty
+            array. Keep one consistent fictional input across a finding's steps.
+            Omit unknown or unhelpful values; do not fabricate external results.
+            Values are displayed as text and never executed. Nodes without a
+            source reference can describe an expression result, displayed beside
+            the preceding mapped code occurrence.
+    FlowConnection:
+      type: object
+      additionalProperties: false
+      required: [from, to]
+      description: |
+        A directed edge between zero-based indices in this flow's nodes array.
+        Both indices must be less than nodes.length and must differ.
+      properties:
+        from:
+          type: integer
+          minimum: 0
+        to:
+          type: integer
+          minimum: 0
+    CodeEdit:
+      type: object
+      additionalProperties: false
+      required: [startLine, endLine, original, replacement]
+      description: |
+        One complete, contiguous replacement against the exact request code.
+        Omit edit when a safe, self-contained replacement cannot be specified.
+        startLine and endLine are one-based and inclusive; endLine is at least
+        startLine and within the snippet. original must exactly equal those
+        source lines joined with LF, without a trailing LF unless the selected
+        range itself ends with an empty line. Preserve indentation.
+
+        Replace all affected lines together, including obsolete definitions.
+        An empty replacement deletes the selected lines. Otherwise split
+        replacement at LF and substitute its lines for the selected lines.
+        The resulting snippet must remain within the 30,000 UTF-16 code-unit
+        limit. Clients must verify original still matches before preview/apply.
+      properties:
+        startLine:
+          type: integer
+          minimum: 1
+        endLine:
+          type: integer
+          minimum: 1
+        original:
+          type: string
+          maxLength: 30000
+        replacement:
+          type: string
+          maxLength: 30000
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                [
+                  invalid_request,
+                  payload_too_large,
+                  rate_limited,
+                  internal_error,
+                  review_failed,
+                  review_unavailable,
+                  review_timeout,
+                ]
+            message:
+              type: string
+              minLength: 1
+              description: Human-readable description of the failure.
+            requestId:
+              type: string
+              description: Optional identifier for correlating service logs.
+            details:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                    description: JSON Pointer to the invalid request field.
+                    examples: [/code]
+                  message:
+                    type: string
+                    minLength: 1
+  responses:
+    BadRequest:
+      description: Malformed JSON or invalid request fields, including blank or over-limit code.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: invalid_request
+              message: Code must contain at least one non-whitespace character.
+              details:
+                - field: /code
+                  message: A code snippet is required.
+    PayloadTooLarge:
+      description: The HTTP request body exceeds 256 KiB.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: payload_too_large
+              message: Request body exceeds 256 KiB.
+    RateLimited:
+      description: Review rate limit exceeded; retry after the indicated delay.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: rate_limited
+              message: Too many review requests. Try again later.
+    InternalError:
+      description: Unexpected service error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: internal_error
+              message: The review could not be completed.
+    ReviewFailed:
+      description: The AI provider failed or returned invalid structured output.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: review_failed
+              message: The provider did not return a valid review. Try again.
+    ReviewUnavailable:
+      description: Review service or AI provider temporarily unavailable.
+      headers:
+        Retry-After:
+          $ref: "#/components/headers/RetryAfter"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: review_unavailable
+              message: Reviews are temporarily unavailable. Try again later.
+    ReviewTimeout:
+      description: The review did not complete within the service's time limit.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: review_timeout
+              message: The review timed out. Try again.
+  headers:
+    RetryAfter:
+      description: Number of seconds to wait before retrying.
+      schema:
+        type: integer
+        minimum: 1
+  examples:
+    SqlInjectionRequest:
+      summary: A query built from an untrusted input
+      value:
+        code: |-
+          async function getUser(userId: string) {
+            const query = `SELECT * FROM users WHERE id = '${userId}'`;
+            return db.query(query);
+          }
+        language: typescript
+        context: userId comes from an API request.
+    SqlInjectionResponse:
+      summary: A finding with linked steps, flows, examples, and an applicable fix
+      value:
+        id: review_example_sql
+        createdAt: "2026-10-21T12:00:00Z"
+        codeHash: 5ed1e01e901d02bcc7811dbe75b71f16dd8269f8bed5efc5feff1267dbbc0278
+        language: typescript
+        summary: "One security issue: untrusted input is interpolated into SQL."
+        findings:
+          - id: finding_sql_injection
+            summary: SQL injection risk
+            description:
+              "`userId` is interpolated directly into SQL and passed to `db.query`. An attacker
+              could alter the query; bind the input as a parameter."
+            severity: critical
+            category: security
+            lineStart: 2
+            lineEnd: 2
+            steps:
+              - description: "`userId` becomes part of the SQL text."
+                links:
+                  - symbolId: getUser.userId
+                    symbol: userId
+                    line: 1
+                    startColumn: 24
+                    endColumn: 30
+                    role: source
+                  - symbolId: getUser.userId
+                    symbol: userId
+                    line: 2
+                    startColumn: 52
+                    endColumn: 58
+                    role: source
+                  - symbolId: getUser.query
+                    symbol: query
+                    line: 2
+                    startColumn: 9
+                    endColumn: 14
+                    role: transform
+                flow:
+                  kind: current
+                  nodes:
+                    - label: Input parameter
+                      reference:
+                        symbolId: getUser.userId
+                        symbol: userId
+                        line: 1
+                        startColumn: 24
+                        endColumn: 30
+                        role: source
+                      sampleValue: '"0'' OR ''1''=''1"'
+                    - label: SQL interpolation
+                      reference:
+                        symbolId: getUser.userId
+                        symbol: userId
+                        line: 2
+                        startColumn: 52
+                        endColumn: 58
+                        role: source
+                      sampleValue: '"0'' OR ''1''=''1"'
+                    - label: Query string
+                      reference:
+                        symbolId: getUser.query
+                        symbol: query
+                        line: 2
+                        startColumn: 9
+                        endColumn: 14
+                        role: transform
+                      sampleValue: '"SELECT * FROM users WHERE id = ''0'' OR ''1''=''1''"'
+                  connections:
+                    - from: 0
+                      to: 1
+                    - from: 1
+                      to: 2
+              - description:
+                  "`db.query` executes the interpolated `query`, so the example input can change
+                  its meaning."
+                links:
+                  - symbolId: getUser.query
+                    symbol: query
+                    line: 2
+                    startColumn: 9
+                    endColumn: 14
+                    role: transform
+                  - symbolId: getUser.query
+                    symbol: query
+                    line: 3
+                    startColumn: 19
+                    endColumn: 24
+                    role: transform
+                  - symbolId: db.query
+                    symbol: db.query
+                    line: 3
+                    startColumn: 10
+                    endColumn: 18
+                    role: sink
+                flow:
+                  kind: current
+                  nodes:
+                    - label: Query string
+                      reference:
+                        symbolId: getUser.query
+                        symbol: query
+                        line: 2
+                        startColumn: 9
+                        endColumn: 14
+                        role: transform
+                      sampleValue: '"SELECT * FROM users WHERE id = ''0'' OR ''1''=''1''"'
+                    - label: Query argument
+                      reference:
+                        symbolId: getUser.query
+                        symbol: query
+                        line: 3
+                        startColumn: 19
+                        endColumn: 24
+                        role: transform
+                      sampleValue: '"SELECT * FROM users WHERE id = ''0'' OR ''1''=''1''"'
+                    - label: Database execution
+                      reference:
+                        symbolId: db.query
+                        symbol: db.query
+                        line: 3
+                        startColumn: 10
+                        endColumn: 18
+                        role: sink
+              - description: Pass `userId` as a bound parameter so it is treated as data.
+                links:
+                  - symbolId: getUser.userId
+                    symbol: userId
+                    line: 2
+                    startColumn: 52
+                    endColumn: 58
+                    role: source
+                flow:
+                  kind: proposed
+                  nodes:
+                    - label: Input parameter
+                      reference:
+                        symbolId: getUser.userId
+                        symbol: userId
+                        line: 2
+                        startColumn: 52
+                        endColumn: 58
+                        role: source
+                      sampleValue: '"0'' OR ''1''=''1"'
+                    - label: Bound query parameter
+                      sampleValue: '["0'' OR ''1''=''1"]'
+                    - label: Database treats the input as data
+            fix: "  return db.query(\n    \"SELECT * FROM users WHERE id = $1\",\n    [userId],\n  );"
+            edit:
+              startLine: 2
+              endLine: 3
+              original: "  const query = `SELECT * FROM users WHERE id = '${userId}'`;\n  return db.query(query);"
+              replacement: "  return db.query(\n    \"SELECT * FROM users WHERE id = $1\",\n    [userId],\n  );"
+    NoFindingsRequest:
+      summary: A small function without identified issues
+      value:
+        code: "const square = (n: number) => n * n;"
+        language: typescript
+    NoFindingsResponse:
+      summary: Completed review of NoFindingsRequest with no findings
+      value:
+        id: review_example_clean
+        createdAt: "2026-10-21T12:00:00Z"
+        codeHash: 030ff157241a72a24f12052e7ec57fe50c904cc5fe2964af522f0ff962768034
+        language: typescript
+        summary: No issues were identified in this snippet.
+        findings: []

@@ -1,6 +1,6 @@
 # Reviewlet
 
-A snippet review application with an interactive React frontend and a mock API. The Go backend and OpenAPI contract remain skeletons.
+A snippet review application with an interactive React frontend and a mock API. The Go backend remains a skeleton; the review HTTP contract is defined in OpenAPI.
 
 ```text
 frontend/   React + TypeScript, served with Vite
@@ -30,7 +30,7 @@ npm run format       # Format frontend files
 npm test             # Run frontend interaction and mock API tests
 ```
 
-Generated build output, coverage, and the npm lockfile are excluded from formatting.
+Generated API code, build output, coverage, and the npm lockfile are excluded from formatting.
 
 ### Mock review workspace
 
@@ -45,13 +45,12 @@ Review findings and discussion controls are hidden for now. The asynchronous moc
 Requires Go 1.27 or newer. In a separate terminal:
 
 ```sh
-cd backend
-go run ./cmd/server
+make backend-run
 ```
 
 The server listens on port 8080. No routes are registered, so requests return 404.
 The frontend development server proxies `/api` requests to this server.
-Run `go test ./...` to check compilation; no tests are defined yet.
+Run `make backend-test` to generate bindings and check compilation; no tests are defined yet.
 
 Backend linting uses golangci-lint, pinned in the root `.golangciversion` file, with configuration in `backend/.golangci.yml`. The standard linter set includes `govet`, and formatting uses `gofmt` and `goimports`. From the repository root:
 
@@ -66,7 +65,30 @@ These targets automatically download the pinned binary to the ignored `backend/b
 
 ## API contract
 
-`api/openapi.yaml` is intentionally empty (`paths: {}`). Define endpoints here before implementing them. Client and server code generation is not configured yet.
+[`api/openapi.yaml`](api/openapi.yaml) defines `POST /api/v1/review`. Send `code` with optional `language` and `context`; receive a synchronous review containing a source hash, a short summary, and structured findings. Findings include severity/category, source locations, concise explanations, symbol references, directional flows, optional illustrative values, and exact replacement edits for applicable fixes. Examples cover a SQL injection finding and a completed review with no findings.
+
+Locations use one-based lines and UTF-16 columns, with exclusive end columns. The returned `codeHash` is SHA-256 of the exact submitted UTF-8 source, allowing clients to detect stale results. The contract also defines validation, rate-limit, and provider error responses. [`api/review-generation.md`](api/review-generation.md) provides guidance for generating examples and edits.
+
+This is the API design; the Go handler and frontend HTTP integration are not implemented yet. Generated bindings are ignored by Git and produced automatically:
+
+- Go: `backend/internal/api/api.gen.go`, using `oapi-codegen` v2.8.0 (pinned as a Go tool in `backend/go.mod`). Includes models, standard `net/http` routes, and the typed `StrictServerInterface`.
+- TypeScript: `frontend/src/api/generated/`, using Hey API v0.99.0 (pinned in `frontend/package.json`). Includes models, a Fetch client, and the `reviewSnippet` endpoint function.
+
+After editing the specification, run from the repository root:
+
+```sh
+make generate                # Regenerate Go server bindings and TS client
+make frontend-generate       # Regenerate only the TS client
+make backend-generate        # Regenerate only the Go bindings
+make build                   # Generate and build both components
+make backend-build           # Generate and build backend/bin/server
+```
+
+Install frontend dependencies first with `cd frontend && npm ci`. Go downloads its pinned generator on first use. Frontend build, dev, lint, and test scripts generate the client before running. Backend Make targets generate the server bindings before building, running, linting, formatting, or testing. This also covers `make check`, the pre-push hook, and existing CI workflows. Edit the spec or generator configuration; do not edit generated files. Generated TS files skip lint/format checks but remain type-checked. Go does not run generation automatically for direct `go build`, `go run`, or `go test` commands: use the Make targets, or run `go generate ./internal/api` from `backend/` first.
+
+Frontend callers can import `reviewSnippet` and request/response types from `frontend/src/api/client.ts`. The client uses the page's origin, including Vite's `/api` proxy during development. Calls return typed `data` or `error` with the HTTP response; callers still need to handle network errors. The UI continues to use the mock API.
+
+To connect the Go server later, implement `api.StrictServerInterface` and register `api.Handler(api.NewStrictHandler(service, nil))` on the HTTP server. Generated bindings decode JSON and serialize typed responses; request limits, schema/source validation, structured error handling, and the review service still need implementation. No endpoint is registered by this generation setup.
 
 ## Checks
 
@@ -76,7 +98,7 @@ After installing frontend dependencies with `cd frontend && npm ci`, run from th
 make check
 ```
 
-This always runs frontend linting, formatting checks, tests, type-checking, and a production build, plus golangci-lint, formatting checks, and `go test` for the backend. Backend tests are not defined yet.
+This always generates API bindings and runs frontend linting, formatting checks, tests, type-checking, and a production build, plus golangci-lint, formatting checks, and `go test` for the backend. Backend tests are not defined yet.
 Use `make frontend-check` or `make backend-check` to run either component separately.
 
 Enable the pre-push hook once per checkout:

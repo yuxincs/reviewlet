@@ -10,7 +10,7 @@ import {
 import App from './App';
 import { createMockReviewApi } from './api/mock';
 import { examples } from './api/examples';
-import { demoSnippet } from './api/demo';
+import { demoSnippet, demoSnippets } from './api/demo';
 
 beforeEach(() => localStorage.clear());
 afterEach(() => {
@@ -997,27 +997,50 @@ describe('snippet editor workspace', () => {
     ).toBeTruthy();
   });
 
-  it('opens an editable demo snippet and persists it in the library', async () => {
+  it('adds six editable language demos, selecting the comprehensive one as newest', async () => {
     localStorage.setItem('reviewlet.mock-reviews.v1', '[]');
     const api = createMockReviewApi(localStorage, 0);
     render(<App api={api} />);
     fireEvent.click(await screen.findByRole('button', { name: 'Try a demo' }));
+    await screen.findByRole('button', { name: demoSnippet.title });
     expect(
       screen.queryByRole('heading', { name: /Understand why/ }),
     ).toBeNull();
-    expect(
-      screen.getByRole('button', { name: demoSnippet.title }),
-    ).toBeTruthy();
+    for (const demo of demoSnippets)
+      expect(screen.getByRole('button', { name: demo.title })).toBeTruthy();
     const editor = screen.getByRole<HTMLTextAreaElement>('textbox', {
       name: 'Code snippet',
     });
     expect(editor.value).toBe(demoSnippet.code);
     const stored = await createMockReviewApi(localStorage, 0).listReviews();
-    expect(stored).toHaveLength(1);
+    expect(stored).toHaveLength(6);
+    expect(new Set(stored.map((snippet) => snippet.language)).size).toBe(6);
+    expect(stored.every((snippet) => snippet.findings.length === 0)).toBe(true);
     expect(stored[0]).toMatchObject(demoSnippet);
     fireEvent.change(editor, { target: { value: 'const demo = true;' } });
     fireEvent.blur(editor);
     expect((await api.listReviews())[0].code).toBe('const demo = true;');
+  });
+
+  it('retains successfully created demos if a later save fails', async () => {
+    localStorage.setItem('reviewlet.mock-reviews.v1', '[]');
+    const api = createMockReviewApi(localStorage, 0);
+    const save = api.saveSnippet.bind(api);
+    const create = vi.spyOn(api, 'saveSnippet');
+    create.mockImplementationOnce((id, input) => save(id, input));
+    create.mockRejectedValueOnce(new Error('Connection interrupted'));
+    render(<App api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Try a demo' }));
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Could not add all demo snippets: Connection interrupted',
+    );
+    const saved = await api.listReviews();
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject(demoSnippets.at(-1)!);
+    expect(
+      screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Code snippet' })
+        .value,
+    ).toBe(saved[0].code);
   });
 
   it('reports a save failure without discarding the edit', async () => {

@@ -22,9 +22,11 @@ function PreviewSymbol({ name }: { name: string }) {
 export function WelcomePage({
   onCreate,
   onDemo,
+  demoLoading = false,
 }: {
   onCreate: () => void;
   onDemo: () => void;
+  demoLoading?: boolean;
 }) {
   return (
     <section className="welcome-page" aria-labelledby="welcome-heading">
@@ -62,9 +64,19 @@ export function WelcomePage({
               Create a snippet
               <Icon name="arrow" size={17} />
             </button>
-            <button className="welcome-demo" onClick={onDemo}>
-              <Icon name="code" size={16} />
-              Try a demo
+            <button
+              className="welcome-demo"
+              onClick={onDemo}
+              disabled={demoLoading}
+              aria-busy={demoLoading}
+              title="Add six language examples, starting with a comprehensive checkout walkthrough"
+            >
+              <Icon
+                name={demoLoading ? 'spinner' : 'code'}
+                size={16}
+                className={demoLoading ? 'review-spinner' : ''}
+              />
+              {demoLoading ? 'Adding demos…' : 'Try a demo'}
             </button>
           </div>
           <div className="welcome-assurance">

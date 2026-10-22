@@ -5,7 +5,7 @@ import { getReviewStatus } from './reviewStatus';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { reviewApi } from './api/reviews';
 import { createFlowPalette, FlowColorContext } from './flowColors';
-import { demoSnippet } from './api/demo';
+import { demoSnippets } from './api/demo';
 import { detectLanguage, LANGUAGE_DETECTION_DELAY } from './detectLanguage';
 import { languageLabels } from './languages';
 import { getFindingOverview, getReviewSteps } from './demoReviewGuide';
@@ -42,6 +42,7 @@ export default function App({
   const [snippets, setSnippets] = useState<Review[]>([]);
   const [activeId, setActiveId] = useState<string>();
   const [loading, setLoading] = useState(true);
+  const [addingDemos, setAddingDemos] = useState(false);
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<string>();
   const deletedIds = useRef(new Set<string>());
@@ -80,7 +81,12 @@ export default function App({
     before: Review;
     appliedCode: string;
   }>();
-  const busy = loading || deletingId !== undefined || reviewing || savingFix;
+  const busy =
+    loading ||
+    addingDemos ||
+    deletingId !== undefined ||
+    reviewing ||
+    savingFix;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
   const guideSteps = activeSnippet ? getReviewSteps(activeSnippet) : [];
   const flowPalette = createFlowPalette(
@@ -477,6 +483,38 @@ export default function App({
     setError('');
     persist(snippet);
   }
+  async function addDemoSnippets() {
+    if (busy) return;
+    setAddingDemos(true);
+    closeGuide();
+    closeMobileSidebar();
+    setError('');
+    setReviewNotice('');
+    const created: Review[] = [];
+    try {
+      // Save oldest first so server creation dates and startup sorting agree
+      // with the visible order. The comprehensive TypeScript demo is newest.
+      for (const input of [...demoSnippets].reverse()) {
+        created.unshift(await api.saveSnippet(crypto.randomUUID(), input));
+      }
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? `Could not add all demo snippets: ${reason.message}`
+          : 'Could not add all demo snippets.',
+      );
+    } finally {
+      // Retain successful saves if a later request fails; do not orphan them.
+      if (created.length) {
+        setSnippets((items) => [...created, ...items]);
+        setActiveId(created[0].id);
+        setGuideStep(0);
+        setExplanationStep(-1);
+      }
+      setAddingDemos(false);
+    }
+  }
+
   function finishRename() {
     if (!activeSnippet) return;
     const title = activeSnippet.title.trim() || 'Untitled snippet';
@@ -834,7 +872,10 @@ export default function App({
           ) : !activeSnippet ? (
             <WelcomePage
               onCreate={newSnippet}
-              onDemo={() => addSnippet(demoSnippet)}
+              onDemo={() => {
+                void addDemoSnippets();
+              }}
+              demoLoading={addingDemos}
             />
           ) : (
             <FlowColorContext.Provider value={flowPalette}>

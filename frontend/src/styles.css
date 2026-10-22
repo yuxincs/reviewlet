@@ -2166,8 +2166,9 @@ textarea::placeholder {
 }
 .guide-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  flex-shrink: 0;
   gap: 10px;
   padding: 22px 22px 18px;
 }
@@ -2180,15 +2181,15 @@ textarea::placeholder {
   font-weight: 600;
   line-height: 1.4;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .guide-keyboard-hint {
-  grid-column: 2;
-  grid-row: 1;
+  grid-column: 1 / -1;
+  grid-row: 2;
   display: flex;
-  gap: 7px;
+  flex-wrap: wrap;
+  gap: 8px 14px;
   color: var(--muted);
 }
 .guide-key-pair {
@@ -2212,7 +2213,7 @@ textarea::placeholder {
   box-shadow: 0 1px 0 var(--line);
 }
 .guide-header > button {
-  grid-column: 3;
+  grid-column: 2;
   grid-row: 1;
   display: grid;
   place-items: center;
@@ -2368,7 +2369,7 @@ textarea::placeholder {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  width: min(480px, calc(100% - 32px));
+  width: min(680px, calc(100% - 32px));
   max-height: min(600px, calc(100% - 64px));
   transition:
     top 180ms ease,

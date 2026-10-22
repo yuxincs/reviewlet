@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { reviewApi } from './api/reviews';
 import { createFlowPalette, FlowColorContext } from './flowColors';
 import { demoSnippet } from './api/demo';
+import { detectLanguage, LANGUAGE_DETECTION_DELAY } from './detectLanguage';
 import { getFindingOverview, getReviewSteps } from './demoReviewGuide';
 import { ReviewPopover, type ReviewAnchor } from './components/ReviewPopover';
 import { ReviewGuide } from './components/ReviewGuide';
@@ -30,6 +31,9 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<string>();
   const deletedIds = useRef(new Set<string>());
+  const pendingDetection = useRef<{ id: string; code: string } | undefined>(
+    undefined,
+  );
   const reviewInFlight = useRef(false);
   const reviewAbort = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => reviewAbort.current?.abort(), []);
@@ -279,6 +283,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   }
   function persist(snippet: Review | undefined) {
     if (!snippet || deletedIds.current.has(snippet.id)) return;
+    snippet = detectPendingLanguage(snippet);
     void api
       .saveSnippet(snippet.id, {
         ...snippet,
@@ -292,6 +297,39 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
         );
       });
   }
+
+  function detectPendingLanguage(snippet: Review): Review {
+    const pending = pendingDetection.current;
+    if (pending?.id !== snippet.id || pending.code !== snippet.code)
+      return snippet;
+    pendingDetection.current = undefined;
+    const language = detectLanguage(snippet.code);
+    if (language === snippet.language) return snippet;
+    const updated = { ...snippet, language };
+    setSnippets((items) =>
+      items.map((item) =>
+        item.id === updated.id && item.code === updated.code
+          ? { ...item, language }
+          : item,
+      ),
+    );
+    return updated;
+  }
+
+  const detectAfterTyping = useEffectEvent(() => {
+    if (busy || !activeSnippet || deletedIds.current.has(activeSnippet.id))
+      return;
+    const detected = detectPendingLanguage(activeSnippet);
+    if (detected.language !== activeSnippet.language) persist(detected);
+  });
+  useEffect(() => {
+    if (!pendingDetection.current) return;
+    const timer = setTimeout(
+      () => detectAfterTyping(),
+      LANGUAGE_DETECTION_DELAY,
+    );
+    return () => clearTimeout(timer);
+  }, [activeId, activeSnippet?.code]);
   function changeSnippet(
     patch: Partial<Pick<Review, 'title' | 'code' | 'language'>>,
   ) {
@@ -333,7 +371,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     addSnippet({
       title: 'Untitled snippet',
       code: '',
-      language: 'typescript',
+      language: 'unknown',
       context: '',
     });
   }
@@ -373,7 +411,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     setError('');
     try {
       const input = {
-        ...activeSnippet,
+        ...detectPendingLanguage(activeSnippet),
         title: activeSnippet.title.trim() || 'Untitled snippet',
       };
       await api.saveSnippet(activeSnippet.id, input);
@@ -612,7 +650,11 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
                   focusedLine={showGuide ? focusedPortionEnd : undefined}
                   onReviewLine={openLineReview}
                   onDismissReview={closeGuide}
-                  onChange={(code) => changeSnippet({ code })}
+                  onChange={(code) => {
+                    if (activeSnippet.code !== code)
+                      pendingDetection.current = { id: activeSnippet.id, code };
+                    changeSnippet({ code });
+                  }}
                   onBlur={() => persist(activeSnippet)}
                 />
                 {!preview && guideAnchor && guideSteps[guideStep] && (

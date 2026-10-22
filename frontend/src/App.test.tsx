@@ -72,6 +72,10 @@ describe('snippet editor workspace', () => {
     expect(
       reloaded.find((snippet) => snippet.title === 'Calculator helper')?.code,
     ).toBe('const result = 1 + 2;');
+    expect(
+      reloaded.find((snippet) => snippet.title === 'Calculator helper')
+        ?.language,
+    ).toBe('unknown');
   });
 
   it('reviews the latest editor contents by button and Command+Enter without duplicating snippets', async () => {

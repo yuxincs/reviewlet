@@ -46,6 +46,18 @@ func TestWorkspaceHTTPPersistence(t *testing.T) {
 		context = *request.Context
 	}
 	draft := map[string]any{"title": "Example", "language": language, "code": request.Code, "context": context}
+	unknown := workspaceCall(t, handler, "PUT", "/api/v1/snippets/6405d432-0160-417f-9c20-700ea4070782", map[string]any{"title": "Example", "language": "unknown", "code": "", "context": ""})
+	if unknown.Code != 200 {
+		t.Fatalf("unknown language draft: %d %s", unknown.Code, unknown.Body.String())
+	}
+	var created api.SavedSnippet
+	if err := json.Unmarshal(unknown.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	if string(created.Language) != "unknown" {
+		t.Fatal("draft language was not preserved")
+	}
+	draft["expectedVersion"] = created.Version
 	invalidID := workspaceCall(t, handler, "PUT", "/api/v1/snippets/not-a-uuid", draft)
 	assertError(t, invalidID, 400, api.ErrorResponseErrorCodeInvalidRequest)
 	response := workspaceCall(t, handler, "PUT", "/api/v1/snippets/6405d432-0160-417f-9c20-700ea4070782", draft)

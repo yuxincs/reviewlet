@@ -1,6 +1,7 @@
 import type { GuideFinding } from './guide';
 
-export type Language = 'typescript' | 'javascript' | 'python' | 'go';
+export type Language =
+  'unknown' | 'typescript' | 'javascript' | 'python' | 'go';
 export type FindingStatus = 'open' | 'accepted' | 'dismissed';
 export type Severity = 'high' | 'medium' | 'low';
 

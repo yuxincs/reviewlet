@@ -6,4 +6,6 @@ export const languageLabels: Record<Language, string> = {
   javascript: 'JavaScript',
   python: 'Python',
   go: 'Go',
+  rust: 'Rust',
+  java: 'Java',
 };

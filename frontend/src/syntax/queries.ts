@@ -39,6 +39,28 @@ const patterns: Record<ParsedLanguage, string> = {
 (call function: (attribute attribute: (identifier) @function))
 (class_definition name: (identifier) @type)
 `,
+  rust: `
+[(line_comment) (block_comment)] @comment
+[(string_literal) (raw_string_literal) (char_literal)] @string
+[(integer_literal) (float_literal)] @number
+(boolean_literal) @constant
+(identifier) @variable
+(field_identifier) @property
+(type_identifier) @type
+(function_item name: (identifier) @function)
+(call_expression function: (identifier) @function)
+`,
+  java: `
+[(line_comment) (block_comment)] @comment
+[(string_literal) (character_literal)] @string
+[(decimal_integer_literal) (decimal_floating_point_literal)] @number
+[(true) (false) (null_literal)] @constant
+(identifier) @variable
+(type_identifier) @type
+(method_declaration name: (identifier) @function)
+(method_invocation name: (identifier) @function)
+(class_declaration name: (identifier) @type)
+`,
   go: `
 (comment) @comment
 [(interpreted_string_literal) (raw_string_literal) (rune_literal)] @string
@@ -192,6 +214,95 @@ const keywords: Record<ParsedLanguage, string[]> = {
     'try',
     'while',
     'with',
+    'yield',
+  ],
+  rust: [
+    'as',
+    'async',
+    'await',
+    'break',
+    'const',
+    'continue',
+    'else',
+    'enum',
+    'extern',
+    'fn',
+    'for',
+    'if',
+    'impl',
+    'in',
+    'let',
+    'loop',
+    'match',
+    'mod',
+    'move',
+    'mut',
+    'pub',
+    'ref',
+    'return',
+    'self',
+    'Self',
+    'static',
+    'struct',
+    'super',
+    'trait',
+    'type',
+    'unsafe',
+    'use',
+    'where',
+    'while',
+  ],
+  java: [
+    'abstract',
+    'assert',
+    'boolean',
+    'break',
+    'byte',
+    'case',
+    'catch',
+    'char',
+    'class',
+    'const',
+    'continue',
+    'default',
+    'do',
+    'double',
+    'else',
+    'enum',
+    'extends',
+    'final',
+    'finally',
+    'float',
+    'for',
+    'if',
+    'implements',
+    'import',
+    'instanceof',
+    'int',
+    'interface',
+    'long',
+    'native',
+    'new',
+    'package',
+    'private',
+    'protected',
+    'public',
+    'record',
+    'return',
+    'short',
+    'static',
+    'super',
+    'switch',
+    'synchronized',
+    'this',
+    'throw',
+    'throws',
+    'transient',
+    'try',
+    'var',
+    'void',
+    'volatile',
+    'while',
     'yield',
   ],
   go: [

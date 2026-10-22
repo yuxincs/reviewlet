@@ -6,7 +6,7 @@ const originalFetch = globalThis.fetch;
 const assets: Record<string, string> = {
   'web-tree-sitter.wasm': `${process.cwd()}/node_modules/web-tree-sitter/web-tree-sitter.wasm`,
   ...Object.fromEntries(
-    ['javascript', 'tsx', 'python', 'go'].map((name) => [
+    ['javascript', 'tsx', 'python', 'go', 'rust', 'java'].map((name) => [
       `tree-sitter-${name}.wasm`,
       `${process.cwd()}/node_modules/@vscode/tree-sitter-wasm/wasm/tree-sitter-${name}.wasm`,
     ]),

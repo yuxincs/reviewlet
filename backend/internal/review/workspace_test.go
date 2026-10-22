@@ -146,3 +146,29 @@ func TestSavedReviewFailureAndSourceMismatch(t *testing.T) {
 		t.Fatal("failed review omitted its saved snippet version")
 	}
 }
+
+func TestWorkspacePersistsRustAndJava(t *testing.T) {
+	service, err := NewService(Config{APIKey: "test-key", BaseURL: "https://example.test/v1", Model: defaultModel, Timeout: time.Second, MaxCompletionTokens: 1000}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := storage.Open(filepath.Join(t.TempDir(), "workspace.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	service.UseStore(store)
+	for _, item := range []struct{ id, language, code string }{{"6405d432-0160-417f-9c20-700ea4070782", "rust", "fn main() {}"}, {"6405d432-0160-417f-9c20-700ea4070783", "java", "class Example {}"}} {
+		response := workspaceCall(t, service.Handler(), "PUT", "/api/v1/snippets/"+item.id, map[string]any{"title": "Language example", "language": item.language, "code": item.code, "context": ""})
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s save rejected: %d %s", item.language, response.Code, response.Body.String())
+		}
+	}
+	saved, err := store.List(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved) != 2 || string(saved[0].Language) != "java" || string(saved[1].Language) != "rust" {
+		t.Fatalf("languages or creation order lost: %+v", saved)
+	}
+}

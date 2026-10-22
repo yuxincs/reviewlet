@@ -127,9 +127,15 @@ function isReview(value: unknown): value is Review {
     ['id', 'title', 'code', 'context', 'createdAt', 'summary'].every(
       (key) => typeof value[key] === 'string',
     ) &&
-    ['unknown', 'typescript', 'javascript', 'python', 'go'].includes(
-      String(value.language),
-    ) &&
+    [
+      'unknown',
+      'typescript',
+      'javascript',
+      'python',
+      'go',
+      'rust',
+      'java',
+    ].includes(String(value.language)) &&
     (value.languageMode === undefined ||
       value.languageMode === 'auto' ||
       value.languageMode === 'manual') &&

@@ -202,7 +202,7 @@ components:
       properties:
         title: { type: string, maxLength: 160 }
         language:
-          { type: string, enum: [unknown, typescript, javascript, python, go] }
+          { type: string, enum: [unknown, typescript, javascript, python, go, rust, java] }
         languageMode:
           type: string
           enum: [auto, manual]
@@ -239,7 +239,7 @@ components:
           pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
         title: { type: string }
         language:
-          { type: string, enum: [unknown, typescript, javascript, python, go] }
+          { type: string, enum: [unknown, typescript, javascript, python, go, rust, java] }
         languageMode:
           type: string
           enum: [auto, manual]

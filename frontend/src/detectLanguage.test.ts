@@ -2,6 +2,15 @@ import { expect, it } from 'vitest';
 import { detectLanguage } from './detectLanguage';
 
 it.each([
+  ['fn main() { let count: u32 = 42; println!("{}", count); }', 'rust'],
+  [
+    'public class Greeting { public static void main(String[] args) { System.out.println("hello"); } }',
+    'java',
+  ],
+  [
+    'class Greeting { public static main(args: string[]): void { console.log(args); } }',
+    'typescript',
+  ],
   ['', 'unknown'],
   ['  \n', 'unknown'],
   ['hello world', 'unknown'],

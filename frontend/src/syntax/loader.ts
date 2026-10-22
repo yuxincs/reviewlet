@@ -4,6 +4,8 @@ import javascriptUrl from '@vscode/tree-sitter-wasm/wasm/tree-sitter-javascript.
 import typescriptUrl from '@vscode/tree-sitter-wasm/wasm/tree-sitter-tsx.wasm?url';
 import pythonUrl from '@vscode/tree-sitter-wasm/wasm/tree-sitter-python.wasm?url';
 import goUrl from '@vscode/tree-sitter-wasm/wasm/tree-sitter-go.wasm?url';
+import rustUrl from '@vscode/tree-sitter-wasm/wasm/tree-sitter-rust.wasm?url';
+import javaUrl from '@vscode/tree-sitter-wasm/wasm/tree-sitter-java.wasm?url';
 import { SyntaxHighlighter } from './engine';
 import type { ParsedLanguage } from './queries';
 
@@ -12,6 +14,8 @@ const assets: Record<ParsedLanguage, string> = {
   typescript: typescriptUrl,
   python: pythonUrl,
   go: goUrl,
+  rust: rustUrl,
+  java: javaUrl,
 };
 const loaded = new Map<ParsedLanguage, Promise<SyntaxHighlighter>>();
 let initialization: Promise<void> | undefined;

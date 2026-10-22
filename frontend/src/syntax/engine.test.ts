@@ -20,6 +20,8 @@ beforeAll(async () => {
     'typescript',
     'python',
     'go',
+    'rust',
+    'java',
   ] as const) {
     const name = language === 'typescript' ? 'tsx' : language;
     const grammar = await Language.load(
@@ -50,6 +52,16 @@ function tokens(code: string, language: ParsedLanguage, kind: SyntaxKind) {
     );
 }
 it.each([
+  [
+    'rust',
+    'fn greet(name: &str) { let value = 42; println!("hello", name',
+    'fn',
+  ],
+  [
+    'java',
+    'public class Greeting { public String greet(String name) { return "hello" + ',
+    'public',
+  ],
   [
     'javascript',
     'function greet(name) {\n const message = "hello";\n return message + ',

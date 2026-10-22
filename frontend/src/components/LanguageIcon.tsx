@@ -28,6 +28,38 @@ export function LanguageIcon({
 }) {
   if (language === 'unknown')
     return <Icon name="code" size={size} className="snippet-language-icon" />;
+  if (language === 'rust' || language === 'java') {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="snippet-language-icon"
+      >
+        <rect
+          x="1"
+          y="1"
+          width="22"
+          height="22"
+          rx="4"
+          fill={language === 'rust' ? '#dea584' : '#ed8b23'}
+          fillOpacity="0.18"
+        />
+        <text
+          x="12"
+          y="16"
+          textAnchor="middle"
+          fill={language === 'rust' ? '#dea584' : '#ed8b23'}
+          fontSize="12"
+          fontWeight="700"
+          fontFamily="monospace"
+        >
+          {language === 'rust' ? 'Rs' : 'Jv'}
+        </text>
+      </svg>
+    );
+  }
   return (
     <svg
       width={size}

@@ -92,7 +92,7 @@ it('uses the live reviewing state when filtering', () => {
   render(
     <SnippetSidebar
       reviews={snippets}
-      reviewingId="a"
+      reviewingIds={new Set(['a'])}
       collapsed={false}
       busy={false}
       loading={false}

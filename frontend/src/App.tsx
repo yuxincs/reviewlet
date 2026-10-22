@@ -53,10 +53,18 @@ export default function App({
   const savedVersions = useRef(new Map<string, number>());
   const savingVersions = useRef(new Map<string, number>());
   const [editRevision, setEditRevision] = useState(0);
-  const reviewInFlight = useRef(false);
-  const reviewAbort = useRef<AbortController | undefined>(undefined);
-  useEffect(() => () => reviewAbort.current?.abort(), []);
-  const [reviewing, setReviewing] = useState(false);
+  const reviewJobs = useRef(new Map<string, AbortController>());
+  const [reviewingIds, setReviewingIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const reviewing = activeId !== undefined && reviewingIds.has(activeId);
+  useEffect(() => {
+    const jobs = reviewJobs.current;
+    return () => {
+      for (const controller of jobs.values()) controller.abort();
+      jobs.clear();
+    };
+  }, []);
   const [savingFix, setSavingFix] = useState(false);
   const [applyFixEnabled, setApplyFixEnabled] = useState(() => {
     try {
@@ -65,7 +73,16 @@ export default function App({
       return false;
     }
   });
-  const [reviewNotice, setReviewNotice] = useState('');
+  const [reviewNotices, setReviewNotices] = useState<Record<string, string>>(
+    {},
+  );
+  const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
+  const reviewNotice = activeId ? reviewNotices[activeId] : undefined;
+  const displayedError =
+    error || (activeId ? reviewErrors[activeId] : undefined);
+  function setReviewNotice(notice: string, id = activeId) {
+    if (id) setReviewNotices((notices) => ({ ...notices, [id]: notice }));
+  }
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideAnchor, setGuideAnchor] = useState<ReviewAnchor>();
   const [guideStep, setGuideStep] = useState(0);
@@ -81,12 +98,9 @@ export default function App({
     before: Review;
     appliedCode: string;
   }>();
-  const busy =
-    loading ||
-    addingDemos ||
-    deletingId !== undefined ||
-    reviewing ||
-    savingFix;
+  const workspaceBusy =
+    loading || addingDemos || deletingId !== undefined || savingFix;
+  const busy = workspaceBusy || reviewing;
   const activeSnippet = snippets.find((snippet) => snippet.id === activeId);
   const guideSteps = activeSnippet ? getReviewSteps(activeSnippet) : [];
   const flowPalette = createFlowPalette(
@@ -320,8 +334,8 @@ export default function App({
   }
   function persist(snippet: Review | undefined) {
     if (
-      reviewInFlight.current ||
       !snippet ||
+      reviewJobs.current.has(snippet.id) ||
       deletedIds.current.has(snippet.id)
     )
       return;
@@ -533,13 +547,19 @@ export default function App({
   }
 
   async function submitReview() {
-    if (busy || reviewInFlight.current || !activeSnippet?.code.trim()) return;
+    if (
+      busy ||
+      !activeSnippet?.code.trim() ||
+      reviewJobs.current.has(activeSnippet.id)
+    )
+      return;
     if (preview) return;
     setUndoFix(undefined);
-    reviewInFlight.current = true;
-    setReviewing(true);
     const controller = new AbortController();
-    reviewAbort.current = controller;
+    const snippetId = activeSnippet.id;
+    reviewJobs.current.set(snippetId, controller);
+    setReviewingIds(new Set(reviewJobs.current.keys()));
+    setReviewErrors((errors) => ({ ...errors, [snippetId]: '' }));
     closeGuide();
     setReviewNotice('');
     setError('');
@@ -584,9 +604,15 @@ export default function App({
           );
           setReviewNotice(
             `${progress.findings.length} findings found. Analyzing details…`,
+            snippetId,
           );
         },
       );
+      if (
+        controller.signal.aborted ||
+        reviewJobs.current.get(snippetId) !== controller
+      )
+        return;
       setSnippets((items) =>
         items.map((item) => (item.id === reviewed.id ? reviewed : item)),
       );
@@ -596,6 +622,7 @@ export default function App({
       ).length;
       setReviewNotice(
         `Review complete: ${count} ${count === 1 ? 'finding' : 'findings'}.${failedGuides ? ` ${failedGuides} guides unavailable.` : ''}`,
+        snippetId,
       );
     } catch (reason) {
       if (controller.signal.aborted) return;
@@ -630,20 +657,23 @@ export default function App({
             : item,
         ),
       );
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : 'Could not review your snippet.',
-      );
+      setReviewErrors((errors) => ({
+        ...errors,
+        [snippetId]:
+          reason instanceof Error
+            ? reason.message
+            : 'Could not review your snippet.',
+      }));
     } finally {
-      reviewInFlight.current = false;
-      reviewAbort.current = undefined;
-      setReviewing(false);
+      if (reviewJobs.current.get(snippetId) === controller) {
+        reviewJobs.current.delete(snippetId);
+        setReviewingIds(new Set(reviewJobs.current.keys()));
+      }
     }
   }
 
   async function deleteSnippet(snippet: Review) {
-    if (busy) return;
+    if (workspaceBusy || reviewJobs.current.has(snippet.id)) return;
     closeGuide();
     setReviewNotice('');
     setDeletingId(snippet.id);
@@ -653,7 +683,7 @@ export default function App({
       await api.deleteSnippet(snippet.id);
       const index = snippets.findIndex((item) => item.id === snippet.id);
       const remaining = snippets.filter((item) => item.id !== snippet.id);
-      setSnippets(remaining);
+      setSnippets((items) => items.filter((item) => item.id !== snippet.id));
       if (activeId === snippet.id) {
         setActiveId((remaining[index] ?? remaining[index - 1])?.id);
       }
@@ -700,9 +730,9 @@ export default function App({
       <SnippetSidebar
         reviews={snippets}
         activeId={activeId}
-        reviewingId={reviewing ? activeId : undefined}
+        reviewingIds={reviewingIds}
         collapsed={sidebarCollapsed}
-        busy={busy}
+        busy={workspaceBusy}
         loading={loading}
         onSelect={selectSnippet}
         onNew={newSnippet}
@@ -852,10 +882,20 @@ export default function App({
           className="workspace editor-workspace"
           aria-label={activeSnippet ? 'Code editor' : 'Workspace'}
         >
-          {error && (
+          {displayedError && (
             <div className="error-banner" role="alert">
-              <p>{error}</p>
-              <button onClick={() => setError('')} aria-label="Dismiss error">
+              <p>{displayedError}</p>
+              <button
+                onClick={() => {
+                  setError('');
+                  if (activeId)
+                    setReviewErrors((errors) => ({
+                      ...errors,
+                      [activeId]: '',
+                    }));
+                }}
+                aria-label="Dismiss error"
+              >
                 <Icon name="close" size={16} />
               </button>
             </div>

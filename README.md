@@ -53,6 +53,13 @@ Generated API code, build output, coverage, and the npm lockfile are excluded fr
 
 ### Review workspace
 
+Reviews run independently per snippet. Start a review, switch to another snippet,
+and start another review while the first continues. Each sidebar item shows its
+own progress. Findings, guides, notices, and errors stay with their snippet;
+unrelated snippets remain editable. A snippet can have one active review at a
+time, and cannot be edited or deleted until that review finishes. Leaving the
+workspace cancels its active review requests.
+
 Applying fixes is experimental and off by default. Enable **Apply fix (unfinished)**
 to the left of **Review snippet** to apply a previewed change. Suggestions and
 inline diff previews remain available while it is off. The toggle is remembered

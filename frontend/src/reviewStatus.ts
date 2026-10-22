@@ -11,9 +11,9 @@ export const reviewStatusLabels: Record<ReviewStatus, string> = {
 
 export function getReviewStatus(
   review: Review,
-  reviewingId?: string,
+  reviewingIds?: ReadonlySet<string>,
 ): ReviewStatus {
-  if (review.id === reviewingId) return 'reviewing';
+  if (reviewingIds?.has(review.id)) return 'reviewing';
   return (
     review.reviewStatus ??
     (review.analysis || review.findings.length ? 'reviewed' : 'draft')

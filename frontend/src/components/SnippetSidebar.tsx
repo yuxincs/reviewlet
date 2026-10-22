@@ -8,7 +8,7 @@ import { LanguageIcon } from './LanguageIcon';
 export function SnippetSidebar({
   reviews,
   activeId,
-  reviewingId,
+  reviewingIds,
   collapsed,
   busy,
   loading,
@@ -20,7 +20,7 @@ export function SnippetSidebar({
 }: {
   reviews: Review[];
   activeId?: string;
-  reviewingId?: string;
+  reviewingIds?: ReadonlySet<string>;
   collapsed: boolean;
   busy: boolean;
   loading: boolean;
@@ -37,7 +37,7 @@ export function SnippetSidebar({
     (review) =>
       (languageFilter === 'all' || review.language === languageFilter) &&
       (statusFilter === 'all' ||
-        getReviewStatus(review, reviewingId) === statusFilter),
+        getReviewStatus(review, reviewingIds) === statusFilter),
   );
   return (
     <aside
@@ -135,29 +135,29 @@ export function SnippetSidebar({
             {visibleReviews.map((review) => (
               <li
                 key={review.id}
-                className={`snippet-row ${reviewingId === review.id ? 'snippet-reviewing' : ''}`}
+                className={`snippet-row ${reviewingIds?.has(review.id) ? 'snippet-reviewing' : ''}`}
               >
                 <button
                   onClick={() => onSelect(review)}
                   disabled={busy}
                   aria-label={review.title}
-                  aria-busy={reviewingId === review.id}
+                  aria-busy={reviewingIds?.has(review.id)}
                   aria-current={activeId === review.id ? 'page' : undefined}
-                  data-review-status={getReviewStatus(review, reviewingId)}
+                  data-review-status={getReviewStatus(review, reviewingIds)}
                   aria-description={
-                    reviewStatusLabels[getReviewStatus(review, reviewingId)]
+                    reviewStatusLabels[getReviewStatus(review, reviewingIds)]
                   }
-                  title={`${review.title} · ${reviewStatusLabels[getReviewStatus(review, reviewingId)]}`}
+                  title={`${review.title} · ${reviewStatusLabels[getReviewStatus(review, reviewingIds)]}`}
                   className={`snippet-item ${activeId === review.id ? 'selected' : ''}`}
                 >
-                  {reviewingId === review.id && (
+                  {reviewingIds?.has(review.id) && (
                     <span className="review-border" aria-hidden="true">
                       <svg width="100%" height="100%">
                         <rect x="1" y="1" rx="5" pathLength="100" />
                       </svg>
                     </span>
                   )}
-                  {reviewingId === review.id ? (
+                  {reviewingIds?.has(review.id) ? (
                     <Icon name="spinner" size={18} className="review-spinner" />
                   ) : (
                     <LanguageIcon language={review.language} />
@@ -169,7 +169,7 @@ export function SnippetSidebar({
                         {languageLabels[review.language]} ·{' '}
                         {
                           reviewStatusLabels[
-                            getReviewStatus(review, reviewingId)
+                            getReviewStatus(review, reviewingIds)
                           ]
                         }
                       </span>
@@ -192,7 +192,7 @@ export function SnippetSidebar({
                   className="snippet-delete"
                   type="button"
                   onClick={() => onDelete(review)}
-                  disabled={busy}
+                  disabled={busy || reviewingIds?.has(review.id)}
                   aria-label={`Delete ${review.title}`}
                   title="Delete snippet"
                 >

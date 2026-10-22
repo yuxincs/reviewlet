@@ -61,17 +61,26 @@ conversation with findings is not implemented.
 
 ## Architecture overview
 
-```text
-Browser: React + TypeScript
-  ├─ highlight.js language detection
-  └─ Tree-sitter WASM syntax highlighting and review overlays
-             │ JSON requests / streamed review snapshots
-             ▼
-Go HTTP server ───── SQLite: snippets, reviews, decisions
-             │
-             └───── LLM provider: findings → concurrent detailed guides
+```mermaid
+flowchart LR
+    subgraph Browser[Browser]
+        UI["React + TypeScript"]
+        Detection["highlight.js<br/>Language detection"]
+        Syntax["Tree-sitter WASM<br/>Syntax highlighting"]
+        UI --> Detection
+        UI --> Syntax
+    end
+    Server["Go HTTP server<br/>API, validation, production frontend"]
+    DB[("SQLite<br/>Snippets, reviews, decisions")]
+    Provider["Configured LLM provider"]
+    Contract["api/openapi.yaml"]
 
-api/openapi.yaml → generated Go bindings, validation schemas, and TS client
+    UI -->|JSON requests| Server
+    Server -->|Frontend assets and SSE snapshots| UI
+    Server <--> DB
+    Server <-->|Structured model calls| Provider
+    Contract -.->|Generated TypeScript client| UI
+    Contract -.->|Generated Go bindings and schemas| Server
 ```
 
 - **React + TypeScript (`frontend/`)** supports quick UI iteration and typed
@@ -93,6 +102,36 @@ api/openapi.yaml → generated Go bindings, validation schemas, and TS client
   usable by the editor, while configurable models allow experimentation.
 
 ### How a review works
+
+```mermaid
+sequenceDiagram
+    participant UI as Browser
+    participant API as Go server
+    participant DB as SQLite
+    participant Primary as Primary model
+    participant Detail as Guide model
+
+    UI->>API: Save snippet, then request review stream
+    API->>DB: Begin versioned review run
+    API->>Primary: Detect initial findings
+    Primary-->>API: Structured findings
+    API->>DB: Save initial findings
+    API-->>UI: SSE progress snapshot
+    Note over API,Detail: Up to three guide requests in parallel per snippet
+    loop As each guide finishes
+        API->>Detail: Explain one finding using the submitted source
+        Detail-->>API: Steps, links, flows, examples, optional edit
+        API->>API: Validate source references and edits
+        opt Guide output rejected
+            API->>Primary: Retry this guide once
+            Primary-->>API: Fallback guide
+            API->>API: Validate fallback output
+        end
+        API->>DB: Save ready guide or explicit failure
+        API-->>UI: SSE updated snapshot
+    end
+    API-->>UI: SSE complete snapshot
+```
 
 1. The frontend saves the snippet and posts its exact code, language, and context
    to `/api/v1/review`, requesting a server-sent event stream.
@@ -164,6 +203,13 @@ With more time, or for a production system, I would prioritize:
    Select example inputs and intermediate values that make the failure easy to
    understand, and evaluate whether each step adds useful information instead of
    merely repeating the finding.
+8. **Stable finding fingerprints across edits and reviews.** Match findings using
+   their issue type, enclosing symbol, and normalized code context rather than
+   line numbers or model-assigned IDs alone. Small edits or shifted lines should
+   preserve dismissals, other finding decisions, and relevant review history
+   across subsequent reviews, while reusing still-valid findings and guides.
+   If the underlying issue changes or a match is uncertain, mark it for recheck
+   instead of silently carrying over a dismissal.
 
 ## AI Usage Log
 

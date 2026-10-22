@@ -1,24 +1,8 @@
 import { reviewSnippet as requestReview, type ReviewResponse } from './client';
 import { createSnippetStore } from './store';
-import type { Finding, Review, ReviewApi, ReviewInput } from '../types/review';
-
-const severities: Record<
-  ReviewResponse['findings'][number]['severity'],
-  Finding['severity']
-> = {
-  critical: 'high',
-  warning: 'medium',
-  info: 'low',
-};
-const categories: Record<
-  ReviewResponse['findings'][number]['category'],
-  Finding['category']
-> = {
-  security: 'Security',
-  bug: 'Reliability',
-  performance: 'Reliability',
-  style: 'Maintainability',
-};
+import { createServerSnippetStore } from './serverStore';
+import { attachReview } from './reviewMapping';
+import type { ReviewApi, ReviewInput } from '../types/review';
 
 async function sourceHash(code: string): Promise<string> {
   const digest = await crypto.subtle.digest(
@@ -62,6 +46,7 @@ function reviewError(error: unknown, response?: Response): Error {
 async function reviewCode(
   input: ReviewInput,
   signal?: AbortSignal,
+  snippetId?: string,
 ): Promise<ReviewResponse> {
   if (!input.code.trim())
     throw new Error('Add a code snippet before starting your review.');
@@ -71,6 +56,7 @@ async function reviewCode(
   const hash = await sourceHash(input.code);
   const result = await requestReview({
     body: {
+      ...(snippetId ? { snippetId } : {}),
       code: input.code,
       language: input.language,
       ...(input.context ? { context: input.context } : {}),
@@ -96,38 +82,15 @@ async function reviewCode(
   return review;
 }
 
-function attachReview(snippet: Review, result: ReviewResponse): Review {
-  return {
-    ...snippet,
-    summary: result.summary,
-    analysis: {
-      id: result.id,
-      createdAt: result.createdAt,
-      codeHash: result.codeHash,
-      language: result.language,
-    },
-    findings: result.findings.map((finding) => ({
-      id: finding.id,
-      title: finding.summary,
-      severity: severities[finding.severity],
-      category: categories[finding.category],
-      lineStart: finding.lineStart,
-      lineEnd: finding.lineEnd,
-      description: finding.description,
-      suggestion: finding.steps.at(-1)?.description ?? '',
-      suggestedCode: finding.fix,
-      status: 'open',
-      comments: [],
-    })),
-    // Store full guides even for the demo snippet; never substitute canned guides.
-    guideFindings: result.findings,
-  };
-}
-
-export function createReviewApi(storage?: Storage): ReviewApi {
-  const store = createSnippetStore(storage, {
-    migrateFrom: 'reviewlet.mock-reviews.v1',
-  });
+export function createReviewApi(
+  storage?: Storage,
+  serverStore?: Omit<ReviewApi, 'createReview' | 'reviewSnippet'>,
+): ReviewApi {
+  const store =
+    serverStore ??
+    createSnippetStore(storage, {
+      migrateFrom: 'reviewlet.mock-reviews.v1',
+    });
   const requests = new Map<string, symbol>();
   const api: ReviewApi = {
     ...store,
@@ -141,7 +104,11 @@ export function createReviewApi(storage?: Storage): ReviewApi {
       const request = Symbol();
       requests.set(id, request);
       try {
-        const result = await reviewCode(input, signal);
+        const result = await reviewCode(
+          input,
+          signal,
+          serverStore ? id : undefined,
+        );
         const current = (await store.listReviews()).find(
           (snippet) => snippet.id === id,
         );
@@ -156,10 +123,15 @@ export function createReviewApi(storage?: Storage): ReviewApi {
             'The snippet changed while it was being reviewed. Review the latest code again.',
           );
         }
+        if (serverStore) return current;
         return store.saveReviewRevision(
           attachReview(current, result),
           input.code,
         );
+      } catch (error) {
+        // A failed persisted review also advances its version/status on the server.
+        if (serverStore) await store.listReviews().catch(() => undefined);
+        throw error;
       } finally {
         if (requests.get(id) === request) requests.delete(id);
       }
@@ -173,12 +145,4 @@ export function createReviewApi(storage?: Storage): ReviewApi {
   return api;
 }
 
-function browserStorage(): Storage | undefined {
-  try {
-    return window.localStorage;
-  } catch {
-    return undefined;
-  }
-}
-
-export const reviewApi = createReviewApi(browserStorage());
+export const reviewApi = createReviewApi(undefined, createServerSnippetStore());

@@ -34,6 +34,7 @@ export interface Finding {
 }
 
 export interface Review extends ReviewInput {
+  reviewStatus?: 'draft' | 'reviewing' | 'reviewed' | 'stale' | 'failed';
   id: string;
   createdAt: string;
   summary: string;

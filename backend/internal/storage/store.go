@@ -96,6 +96,47 @@ func (s *Store) initialize() error {
 			return err
 		}
 	}
+	rows, err := tx.QueryContext(ctx, "SELECT id, document FROM snippets WHERE review_run<>''")
+	if err != nil {
+		return err
+	}
+	type interrupted struct {
+		id       string
+		document []byte
+	}
+	var updates []interrupted
+	for rows.Next() {
+		var id string
+		var data []byte
+		if err := rows.Scan(&id, &data); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		var snippet api.SavedSnippet
+		if err := json.Unmarshal(data, &snippet); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		failPendingGuides(&snippet)
+		data, err = json.Marshal(snippet)
+		if err != nil {
+			_ = rows.Close()
+			return err
+		}
+		updates = append(updates, interrupted{id, data})
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	for _, update := range updates {
+		if _, err := tx.ExecContext(ctx, "UPDATE snippets SET document=? WHERE id=?", string(update.document), update.id); err != nil {
+			return err
+		}
+	}
 	// Synchronous reviews cannot resume after process termination.
 	if _, err := tx.ExecContext(ctx, `UPDATE snippets SET document=json_set(document, '$.reviewStatus', 'failed', '$.version', version+1), version=version+1, review_run='' WHERE review_run<>''`); err != nil {
 		return err
@@ -253,17 +294,34 @@ func (s *Store) BeginReview(ctx context.Context, request api.ReviewRequest) (str
 }
 
 func (s *Store) CompleteReview(ctx context.Context, id, token string, result api.ReviewResponse) (api.SavedSnippet, error) {
+	return s.ProgressReview(ctx, id, token, result, true)
+}
+
+// ProgressReview uses the run token as a compare-and-swap guard against edits,
+// deletion, and superseding reviews. Intermediate results survive a reload.
+func (s *Store) ProgressReview(ctx context.Context, id, token string, result api.ReviewResponse, complete bool) (api.SavedSnippet, error) {
 	return s.mutate(ctx, id, nil, false, func(snippet *api.SavedSnippet, run *string) error {
-		if *run != token {
+		hash := sha256.Sum256([]byte(snippet.Code))
+		if *run != token || hex.EncodeToString(hash[:]) != result.CodeHash {
 			return ErrConflict
 		}
 		states := map[string]api.SavedFindingState{}
+		failed := false
 		for _, finding := range result.Findings {
 			states[finding.Id] = api.SavedFindingState{Status: api.SavedFindingStateStatusOpen, GuideState: api.SavedFindingStateGuideStateCurrent, Comments: []api.SavedComment{}}
+			if finding.DetailStatus != nil && *finding.DetailStatus == api.ReviewFindingDetailStatusFailed {
+				failed = true
+			}
 		}
 		snippet.Review = &api.SavedReview{Result: result, FindingStates: states}
-		snippet.ReviewStatus = api.Reviewed
-		*run = ""
+		snippet.ReviewStatus = api.Reviewing
+		if complete {
+			snippet.ReviewStatus = api.Reviewed
+			if failed {
+				snippet.ReviewStatus = api.Failed
+			}
+			*run = ""
+		}
 		return nil
 	})
 }
@@ -274,6 +332,7 @@ func (s *Store) FailReview(ctx context.Context, id, token string) (api.SavedSnip
 			return ErrConflict
 		}
 		snippet.ReviewStatus = api.Failed
+		failPendingGuides(snippet)
 		*run = ""
 		return nil
 	})
@@ -321,8 +380,8 @@ func validReviewState(review api.SavedReview) error {
 }
 
 func (s *Store) Decide(ctx context.Context, id, findingID string, input api.FindingDecisionRequest) (api.SavedSnippet, error) {
-	return s.mutate(ctx, id, nil, false, func(snippet *api.SavedSnippet, _ *string) error {
-		if snippet.Review == nil || snippet.Review.Result.Id != input.ReviewId {
+	return s.mutate(ctx, id, nil, false, func(snippet *api.SavedSnippet, run *string) error {
+		if *run != "" || snippet.Review == nil || snippet.Review.Result.Id != input.ReviewId {
 			return ErrConflict
 		}
 		state, ok := snippet.Review.FindingStates[findingID]
@@ -333,4 +392,21 @@ func (s *Store) Decide(ctx context.Context, id, findingID string, input api.Find
 		snippet.Review.FindingStates[findingID] = state
 		return nil
 	})
+}
+
+func failPendingGuides(snippet *api.SavedSnippet) {
+	if snippet.Review == nil {
+		return
+	}
+	phase := api.Complete
+	snippet.Review.Result.Phase = &phase
+	for i := range snippet.Review.Result.Findings {
+		finding := &snippet.Review.Result.Findings[i]
+		if finding.DetailStatus != nil && *finding.DetailStatus == api.ReviewFindingDetailStatusPending {
+			status := api.ReviewFindingDetailStatusFailed
+			finding.DetailStatus = &status
+			message := "Guide generation was interrupted. Review again to retry."
+			finding.DetailError = &message
+		}
+	}
 }

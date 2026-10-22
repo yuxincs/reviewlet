@@ -4,7 +4,8 @@ info:
   version: 0.1.0
   description: |
     AI-powered review of an ad-hoc code snippet. POST /api/v1/review returns
-    a complete review synchronously. An optional snippetId saves its status and result.
+    a complete JSON review, or staged snapshots with Accept: text/event-stream.
+    An optional snippetId saves its status and result.
     The snippet endpoints manage a single shared workspace persisted in SQLite.
     Finding locations, symbol references, and suggested edits refer to the exact
     submitted code. Acceptance, dismissal, local fix remapping, and discussion
@@ -29,6 +30,13 @@ paths:
         values, and optional exact replacement edits. Code is reviewed as text;
         example inputs are illustrative and are not executed.
 
+        Send Accept: text/event-stream for a staged review: detection uses the primary
+        model, then per-finding guides are generated concurrently. Events are
+        `progress` (a full ReviewResponse snapshot), `complete` (final snapshot),
+        and `error` (ErrorResponse). Heartbeat comments may occur between events.
+        An error after streaming begins uses an error event, not an HTTP status.
+        JSON requests retain the synchronous single-pass response for compatibility.
+
         A successful review with no findings returns 200 with an empty findings
         array. Do not encode provider failures, timeouts, or invalid structured
         model output as a successful empty review.
@@ -52,7 +60,7 @@ paths:
                 $ref: "#/components/examples/NoFindingsRequest"
       responses:
         "200":
-          description: A completed review of the submitted code.
+          description: A completed JSON review, or a stream of staged review snapshots.
           content:
             application/json:
               schema:
@@ -62,6 +70,9 @@ paths:
                   $ref: "#/components/examples/SqlInjectionResponse"
                 noFindings:
                   $ref: "#/components/examples/NoFindingsResponse"
+            text/event-stream:
+              schema:
+                type: string
         "400":
           $ref: "#/components/responses/BadRequest"
         "413":
@@ -338,6 +349,10 @@ components:
           type: string
           format: date-time
           description: Time the review result was produced, in RFC 3339 format.
+        phase:
+          type: string
+          enum: [detailing, complete]
+          description: Staged review phase. Missing means complete for older synchronous responses.
         snippetVersion:
           type: integer
           minimum: 1
@@ -393,6 +408,15 @@ components:
           minLength: 1
           maxLength: 128
           description: Unique identifier within this review.
+        detailStatus:
+          type: string
+          enum: [pending, ready, failed]
+          x-enum-varnames: [ReviewFindingDetailStatusPending, ReviewFindingDetailStatusReady, ReviewFindingDetailStatusFailed]
+          description: Server-owned guide generation status; missing means ready.
+        detailError:
+          type: string
+          maxLength: 300
+          description: Safe error message when a guide could not be generated.
         summary:
           type: string
           minLength: 1

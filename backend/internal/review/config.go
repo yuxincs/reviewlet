@@ -15,6 +15,7 @@ type Config struct {
 	APIKey              string
 	BaseURL             string
 	Model               string
+	DetailModel         string
 	Timeout             time.Duration
 	MaxCompletionTokens int
 }
@@ -23,9 +24,13 @@ func LoadConfig() (Config, error) {
 	config := Config{
 		APIKey:              strings.TrimSpace(os.Getenv("OPENAI_API_KEY")),
 		Model:               strings.TrimSpace(os.Getenv("OPENAI_MODEL")),
+		DetailModel:         strings.TrimSpace(os.Getenv("OPENAI_DETAIL_MODEL")),
 		BaseURL:             strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")),
 		Timeout:             90 * time.Second,
 		MaxCompletionTokens: 16384,
+	}
+	if config.DetailModel == "" {
+		config.DetailModel = "gpt-6-luna"
 	}
 	if config.Model == "" {
 		config.Model = defaultModel

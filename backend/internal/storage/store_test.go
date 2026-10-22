@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -19,7 +21,8 @@ func request(id string) api.ReviewRequest {
 	return api.ReviewRequest{SnippetId: &id, Code: value.Code, Language: &language, Context: &value.Context}
 }
 func result(id string) api.ReviewResponse {
-	return api.ReviewResponse{Id: id, CreatedAt: time.Now().UTC(), CodeHash: "hash", Language: "go", Summary: "Check empty input", Findings: []api.ReviewFinding{{Id: "f1", Summary: "Empty input", Description: "Indexing can fail", Severity: api.Warning, Category: api.Bug, LineStart: 1, LineEnd: 1, Steps: []api.ExplanationStep{{Description: "Check length"}}, Fix: ""}}}
+	hash := sha256.Sum256([]byte(input().Code))
+	return api.ReviewResponse{Id: id, CreatedAt: time.Now().UTC(), CodeHash: hex.EncodeToString(hash[:]), Language: "go", Summary: "Check empty input", Findings: []api.ReviewFinding{{Id: "f1", Summary: "Empty input", Description: "Indexing can fail", Severity: api.Warning, Category: api.Bug, LineStart: 1, LineEnd: 1, Steps: []api.ExplanationStep{{Description: "Check length"}}, Fix: ""}}}
 }
 func openTestStore(t *testing.T) *Store {
 	t.Helper()
@@ -185,4 +188,75 @@ func TestFixRevisionAndDecisionScope(t *testing.T) {
 func completeReview(store *Store, ctx context.Context, id, token string, result api.ReviewResponse) error {
 	_, err := store.CompleteReview(ctx, id, token, result)
 	return err
+}
+
+func TestPartialGuidesPersistAndRejectSupersededProgress(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	_, err := store.Save(ctx, "snippet", input())
+	check(t, err)
+	token, err := store.BeginReview(ctx, request("snippet"))
+	check(t, err)
+	partial := result("review1")
+	phase := api.Detailing
+	partial.Phase = &phase
+	pending := api.ReviewFindingDetailStatusPending
+	partial.Findings[0].DetailStatus = &pending
+	ready := partial.Findings[0]
+	ready.Id = "f2"
+	status := api.ReviewFindingDetailStatusReady
+	ready.DetailStatus = &status
+	partial.Findings = append(partial.Findings, ready)
+	saved, err := store.ProgressReview(ctx, "snippet", token, partial, false)
+	check(t, err)
+	if saved.ReviewStatus != api.Reviewing || len(saved.Review.Result.Findings) != 2 {
+		t.Fatal("partial review not persisted")
+	}
+	failed, err := store.FailReview(ctx, "snippet", token)
+	check(t, err)
+	if *failed.Review.Result.Findings[0].DetailStatus != api.ReviewFindingDetailStatusFailed || *failed.Review.Result.Findings[1].DetailStatus != api.ReviewFindingDetailStatusReady {
+		t.Fatal("failed review lost ready guides or retained pending guides")
+	}
+	_, err = store.ProgressReview(ctx, "snippet", token, partial, true)
+	if !errors.Is(err, ErrConflict) {
+		t.Fatal("late progress overwrote a failed run")
+	}
+	token, err = store.BeginReview(ctx, request("snippet"))
+	check(t, err)
+	saved, err = store.ProgressReview(ctx, "snippet", token, partial, false)
+	check(t, err)
+	edited := input()
+	edited.Code = "return nil"
+	edited.ExpectedVersion = &saved.Version
+	_, err = store.Save(ctx, "snippet", edited)
+	check(t, err)
+	_, err = store.ProgressReview(ctx, "snippet", token, partial, true)
+	if !errors.Is(err, ErrConflict) {
+		t.Fatal("late progress overwrote edited source")
+	}
+}
+
+func TestRestartRetainsReadyGuidesAndFailsPendingOnes(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "workspace.db")
+	store, err := Open(path)
+	check(t, err)
+	_, err = store.Save(ctx, "snippet", input())
+	check(t, err)
+	token, err := store.BeginReview(ctx, request("snippet"))
+	check(t, err)
+	partial := result("review1")
+	pending := api.ReviewFindingDetailStatusPending
+	partial.Findings[0].DetailStatus = &pending
+	_, err = store.ProgressReview(ctx, "snippet", token, partial, false)
+	check(t, err)
+	check(t, store.Close())
+	store, err = Open(path)
+	check(t, err)
+	defer func() { _ = store.Close() }()
+	snippets, err := store.List(ctx)
+	check(t, err)
+	if snippets[0].ReviewStatus != api.Failed || *snippets[0].Review.Result.Findings[0].DetailStatus != api.ReviewFindingDetailStatusFailed {
+		t.Fatal("interrupted guide still pending after restart")
+	}
 }

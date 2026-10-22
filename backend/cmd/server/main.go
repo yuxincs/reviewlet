@@ -66,7 +66,7 @@ func run(logger *slog.Logger) error {
 	}
 	result := make(chan error, 1)
 	go func() { result <- server.Serve(listener) }()
-	logger.Info("server_started", "address", listener.Addr().String(), "model", config.Model, "review_timeout_ms", config.Timeout.Milliseconds())
+	logger.Info("server_started", "address", listener.Addr().String(), "model", config.Model, "detail_model", config.DetailModel, "review_timeout_ms", config.Timeout.Milliseconds())
 	select {
 	case err := <-result:
 		if errors.Is(err, http.ErrServerClosed) {

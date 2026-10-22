@@ -71,6 +71,15 @@ func (s *Service) Handler() http.Handler {
 				writeError(w, invalidRequest())
 				return
 			}
+			if workspaceSchema == "" && strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
+				var input api.ReviewRequest
+				if json.Unmarshal(data, &input) != nil {
+					writeError(w, invalidRequest())
+					return
+				}
+				s.streamReview(w, r, input)
+				return
+			}
 			r.Body = io.NopCloser(bytes.NewReader(data))
 		}
 		routes.ServeHTTP(w, r)

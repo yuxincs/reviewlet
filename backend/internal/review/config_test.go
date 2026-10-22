@@ -9,6 +9,7 @@ func configEnvironment(t *testing.T) {
 	t.Helper()
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("OPENAI_MODEL", "")
+	t.Setenv("OPENAI_DETAIL_MODEL", "")
 	for _, key := range []string{"OPENAI_BASE_URL", "REVIEW_TIMEOUT", "OPENAI_MAX_COMPLETION_TOKENS"} {
 		t.Setenv(key, "")
 	}
@@ -20,10 +21,11 @@ func TestLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.Model != "gpt-6.1-sol" || config.BaseURL != "https://api.openai.com/v1" || config.Timeout != 90*time.Second || config.MaxCompletionTokens != 16384 {
+	if config.DetailModel != "gpt-6-luna" || config.Model != "gpt-6.1-sol" || config.BaseURL != "https://api.openai.com/v1" || config.Timeout != 90*time.Second || config.MaxCompletionTokens != 16384 {
 		t.Fatalf("unexpected defaults: %+v", config)
 	}
 	t.Setenv("OPENAI_MODEL", "override-model")
+	t.Setenv("OPENAI_DETAIL_MODEL", "detail-model")
 	t.Setenv("OPENAI_BASE_URL", "http://localhost:1234/custom/v1/")
 	t.Setenv("REVIEW_TIMEOUT", "30s")
 	t.Setenv("OPENAI_MAX_COMPLETION_TOKENS", "2048")
@@ -31,7 +33,7 @@ func TestLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.Model != "override-model" || config.Timeout != 30*time.Second || config.MaxCompletionTokens != 2048 {
+	if config.DetailModel != "detail-model" || config.Model != "override-model" || config.Timeout != 30*time.Second || config.MaxCompletionTokens != 2048 {
 		t.Fatal("configuration overrides ignored")
 	}
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { reviewApi } from './api/mock';
+import { reviewApi } from './api/reviews';
 import { createFlowPalette, FlowColorContext } from './flowColors';
 import { examples } from './api/examples';
 import { getFindingOverview, getReviewSteps } from './demoReviewGuide';
@@ -31,6 +31,8 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
   const [deletingId, setDeletingId] = useState<string>();
   const deletedIds = useRef(new Set<string>());
   const reviewInFlight = useRef(false);
+  const reviewAbort = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => reviewAbort.current?.abort(), []);
   const [reviewing, setReviewing] = useState(false);
   const [savingFix, setSavingFix] = useState(false);
   const [reviewNotice, setReviewNotice] = useState('');
@@ -273,7 +275,12 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       ...activeSnippet,
       ...patch,
       ...(codeChanged
-        ? { findings: [], summary: '', guideFindings: undefined }
+        ? {
+            findings: [],
+            summary: '',
+            guideFindings: undefined,
+            analysis: undefined,
+          }
         : {}),
     };
     setSnippets((items) =>
@@ -327,6 +334,8 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
     setUndoFix(undefined);
     reviewInFlight.current = true;
     setReviewing(true);
+    const controller = new AbortController();
+    reviewAbort.current = controller;
     closeGuide();
     setReviewNotice('');
     setError('');
@@ -336,7 +345,11 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
         title: activeSnippet.title.trim() || 'Untitled snippet',
       };
       await api.saveSnippet(activeSnippet.id, input);
-      const reviewed = await api.reviewSnippet(activeSnippet.id, input);
+      const reviewed = await api.reviewSnippet(
+        activeSnippet.id,
+        input,
+        controller.signal,
+      );
       setSnippets((items) =>
         items.map((item) => (item.id === reviewed.id ? reviewed : item)),
       );
@@ -344,9 +357,10 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       closeGuide();
       const count = reviewed.findings.length;
       setReviewNotice(
-        `Demo review complete: ${count} ${count === 1 ? 'finding' : 'findings'}.`,
+        `Review complete: ${count} ${count === 1 ? 'finding' : 'findings'}.`,
       );
     } catch (reason) {
+      if (controller.signal.aborted) return;
       setError(
         reason instanceof Error
           ? reason.message
@@ -354,6 +368,7 @@ export default function App({ api = reviewApi }: { api?: ReviewApi }) {
       );
     } finally {
       reviewInFlight.current = false;
+      reviewAbort.current = undefined;
       setReviewing(false);
     }
   }

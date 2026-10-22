@@ -91,7 +91,7 @@ describe('snippet editor workspace', () => {
     fireEvent.keyDown(editor, { key: 'Enter', metaKey: true });
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toBe(
-        'Demo review complete: 1 finding.',
+        'Review complete: 1 finding.',
       ),
     );
     expect(sidebarItem.getAttribute('aria-busy')).toBe('false');
@@ -109,7 +109,7 @@ describe('snippet editor workspace', () => {
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toBe(
-        'Demo review complete: 1 finding.',
+        'Review complete: 1 finding.',
       ),
     );
   });
@@ -138,7 +138,7 @@ describe('snippet editor workspace', () => {
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toBe(
-        'Demo review complete: 0 findings.',
+        'Review complete: 0 findings.',
       ),
     );
   });
@@ -161,7 +161,7 @@ describe('snippet editor workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Review snippet' }));
     await waitFor(() =>
       expect(screen.getByRole('status').textContent).toBe(
-        'Demo review complete: 3 findings.',
+        'Review complete: 3 findings.',
       ),
     );
     expect(submit).toHaveBeenCalledTimes(2);

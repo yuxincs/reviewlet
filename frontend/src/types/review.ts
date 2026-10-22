@@ -39,6 +39,13 @@ export interface Review extends ReviewInput {
   summary: string;
   findings: Finding[];
   guideFindings?: GuideFinding[];
+  // Metadata for the original server review; local fixes may remap its findings.
+  analysis?: {
+    id: string;
+    createdAt: string;
+    codeHash: string;
+    language: string;
+  };
 }
 
 export interface ReviewApi {
@@ -47,7 +54,11 @@ export interface ReviewApi {
   saveReviewRevision(review: Review, expectedCode: string): Promise<Review>;
   deleteSnippet(id: string): Promise<void>;
   createReview(input: ReviewInput): Promise<Review>;
-  reviewSnippet(id: string, input: ReviewInput): Promise<Review>;
+  reviewSnippet(
+    id: string,
+    input: ReviewInput,
+    signal?: AbortSignal,
+  ): Promise<Review>;
   updateFinding(
     reviewId: string,
     findingId: string,

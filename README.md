@@ -1,6 +1,6 @@
 # Reviewlet
 
-A snippet review application with an interactive React frontend and a Go review API backed by an OpenAI-compatible LLM provider. The frontend still uses its local mock API; the HTTP contract is defined in OpenAPI.
+A snippet review application with an interactive React frontend and a Go review API backed by an OpenAI-compatible LLM provider. The frontend calls the Go API for reviews and saves its snippet library locally. The HTTP contract is defined in OpenAPI.
 
 ```text
 frontend/   React + TypeScript, served with Vite
@@ -27,18 +27,32 @@ npm run lint          # Check code quality; warnings fail the check
 npm run lint:fix      # Apply available automatic lint fixes
 npm run format:check  # Check formatting without modifying files
 npm run format       # Format frontend files
-npm test             # Run frontend interaction and mock API tests
+npm test             # Run frontend interaction and review adapter tests
 ```
 
 Generated API code, build output, coverage, and the npm lockfile are excluded from formatting.
 
-### Mock review workspace
+### Review workspace
 
-The frontend works without the Go server. Dark mode is the default. The header’s **Review snippet** button runs the local mock reviewer; **Command+Enter** (or **Ctrl+Enter**) runs the same action. Empty snippets cannot be submitted. Review completion is announced to screen readers without a visible banner. Findings highlight the affected code lines and gutter: red for high priority, amber for medium priority, and blue for suggestions. Code edits clear the highlights until the next review; renaming keeps them. Click a highlighted code line or its line number to open an animated review popover below the last line of the focused portion. Steps with symbol links anchor below their last linked line; other steps anchor below the finding’s range. The editor leaves room beneath the focused code, and the panel scrolls within the available space. Click elsewhere or press Escape to dismiss it; **Alt+Enter** also opens the finding on the current line. Each finding has a one-line summary containing severity (**critical**, **warning**, **info**), category (**bug**, **style**, **performance**, **security**), and concise title; the clicked editor line supplies the location. While the panel is focused, use **Left/Right arrow keys** for explanation steps and **Up/Down arrow keys** for findings in code order. Navigation stops at either end; switching findings starts at its first step. Numbered explanation steps can include symbol links; selecting a step highlights its linked symbols and dims unrelated code and line numbers. Steps without links keep the finding’s line or range bright; closing the panel restores the full editor. The selected step automatically shows animated curves between mapped code symbols in the editor. Variable colors derive from symbol identity for any snippet, with optional scope-qualified IDs; each flow segment uses its own destination symbol’s color. Curves avoid symbol boxes and prefer routes without crossings. The review panel contains concise steps and symbol links without a separate flow diagram. The flow updates automatically when you select a step or use the arrow keys. Proposed fixes are explicitly labeled; abstract nodes never create fabricated code connections. Motion respects the system’s reduced-motion preference. Suggested code follows the steps. The popover shows only the finding for the clicked line. The exact database example adds prepared explanations with linked variable highlights; click a variable reference to jump to its line. Editing clears the findings and closes the popover. Linked variables are prepared demo content, not live AI or automatic data-flow analysis. The main workspace contains a full-height code editor with an editable snippet name in its title bar. The collapsible sidebar lists your saved snippets and keeps the Reviewlet logo visible.
+Snippet editing and local storage work without the Go server; submitting a review requires the server and a configured LLM provider. Dark mode is the default. The header’s **Review snippet** button calls `POST /api/v1/review` through the generated HTTP client; **Command+Enter** (or **Ctrl+Enter**) runs the same action. Empty snippets cannot be submitted. Review completion is announced to screen readers without a visible banner. Findings highlight the affected code lines and gutter: red for high priority, amber for medium priority, and blue for suggestions. Code edits clear the highlights until the next review; renaming keeps them. Click a highlighted code line or its line number to open an animated review popover below the last line of the focused portion. Steps with symbol links anchor below their last linked line; other steps anchor below the finding’s range. The editor leaves room beneath the focused code, and the panel scrolls within the available space. Click elsewhere or press Escape to dismiss it; **Alt+Enter** also opens the finding on the current line. Each finding has a one-line summary containing severity (**critical**, **warning**, **info**), category (**bug**, **style**, **performance**, **security**), and concise title; the clicked editor line supplies the location. While the panel is focused, use **Left/Right arrow keys** for explanation steps and **Up/Down arrow keys** for findings in code order. Navigation stops at either end; switching findings starts at its overview. Numbered explanation steps can include symbol links; selecting a step highlights its linked symbols and dims unrelated code and line numbers. Steps without links keep the finding’s line or range bright; closing the panel restores the full editor. The selected step automatically shows animated curves between mapped code symbols in the editor. Variable colors derive from symbol identity for any snippet, with optional scope-qualified IDs; each flow segment uses its own destination symbol’s color. Curves avoid symbol boxes and prefer routes without crossings. The review panel contains concise steps and symbol links without a separate flow diagram. The flow updates automatically when you select a step or use the arrow keys. Proposed fixes are explicitly labeled; abstract nodes never create fabricated code connections. Motion respects the system’s reduced-motion preference. Suggested code follows the steps. The popover shows only the finding for the clicked line. The backend supplies explanations and linked variable highlights for each snippet; click a variable reference to jump to its line. Editing clears the findings and closes the popover. Explanations, flows, illustrative values, and suggested edits come from the backend review; the frontend renders them without executing code. The main workspace contains a full-height code editor with an editable snippet name in its title bar. The collapsible sidebar lists your saved snippets and keeps the Reviewlet logo visible.
 
-Create a snippet with **New snippet**, rename it in the title bar, and edit its code. Hover a sidebar snippet (or focus it with the keyboard) to reveal its red delete button. Deletions are saved locally, including an empty library. An empty library shows a landing page introducing intelligent code reviews, with an illustrative finding and suggested fix and buttons to create a blank snippet or try a prefilled demo. Edits save locally when you leave a field or switch snippets. Up to 20 snippets are stored in this browser; clear the site's browser data to reset the demo. Storage-disabled sessions continue in memory. Authentication and server-side ownership are not implemented yet.
+Create a snippet with **New snippet**, rename it in the title bar, and edit its code. Hover a sidebar snippet (or focus it with the keyboard) to reveal its red delete button. Deletions are saved locally, including an empty library. An empty library shows a landing page introducing intelligent code reviews, with an illustrative finding and suggested fix and buttons to create a blank snippet or try a prefilled demo. Edits save locally when you leave a field or switch snippets. Up to 20 snippets are stored in this browser; clear the site's browser data to reset the local workspace. Storage-disabled sessions continue in memory. Authentication and server-side ownership are not implemented yet.
 
-Review findings and discussion controls are hidden for now. The asynchronous mock API remains in `src/api/mock.ts`; it can later be replaced with HTTP calls. No code is sent to a server or AI service. Syntax highlighting currently uses a lightweight regex tokenizer, not a language parser.
+Review generation uses `src/api/reviews.ts`; `src/api/mock.ts` supplies deterministic fixtures only for tests. The review button and Command/Ctrl+Enter submit the current code, language hint, and optional context to the Go server, which forwards them to the configured provider. A failed review shows an error and allows retry; it never falls back to canned findings. Backend request IDs and retry delays appear in errors when available. Snippets, local finding status/comments, and applied-fix revisions remain in this browser; AI discussion and server-side snippet persistence are not implemented. Syntax highlighting currently uses a lightweight regex tokenizer, not a language parser.
+
+For local development, keep both processes running in separate terminals:
+
+```sh
+# Terminal 1, repository root
+export OPENAI_API_KEY="your-api-key"
+make backend-run
+
+# Terminal 2, repository root
+cd frontend
+npm run dev
+```
+
+Vite forwards `/api` to `http://localhost:8080`; OpenAI credentials stay in the backend environment. Local data uses `reviewlet.snippets.v1`. On first run, snippets from the old `reviewlet.mock-reviews.v1` key are migrated with their code and titles intact; mock findings are cleared. **Try a demo** inserts a code snippet for review. Findings still come from the same backend as every other snippet; the UI does not require a fixed count. Existing saved snippets are preserved.
 
 ## Backend
 
@@ -61,7 +75,7 @@ make backend-run
 | `LISTEN_ADDR`                  | `:8080`                     | HTTP listen address                                                     |
 | `LOG_LEVEL`                    | `info`                      | Log threshold: `debug`, `info`, `warn`, or `error`                      |
 
-The server registers `POST /api/v1/review`. The frontend development server proxies `/api` requests here, though its review UI still uses mocks. To call the real backend directly (this sends the snippet to your configured provider):
+The server registers `POST /api/v1/review`. The frontend development server proxies `/api` requests here, including the review button and its keyboard shortcut. To call the real backend directly (this sends the snippet to your configured provider):
 
 ```sh
 curl http://localhost:8080/api/v1/review \
@@ -98,7 +112,7 @@ These targets automatically download the pinned binary to the ignored `backend/b
 
 Locations use one-based lines and UTF-16 columns, with exclusive end columns. The returned `codeHash` is SHA-256 of the exact submitted UTF-8 source, allowing clients to detect stale results. The contract also defines validation, rate-limit, and provider error responses. [`api/review-generation.md`](api/review-generation.md) provides guidance for generating examples and edits.
 
-The Go handler implements this contract; frontend HTTP integration is still pending. Generated bindings are ignored by Git and produced automatically:
+The Go handler and frontend review adapter use this contract. Generated bindings are ignored by Git and produced automatically:
 
 - Go: `backend/internal/api/api.gen.go`, using `oapi-codegen` v2.8.0 (pinned as a Go tool in `backend/go.mod`). Includes models, standard `net/http` routes, and the typed `StrictServerInterface`.
 - Runtime validation: `backend/internal/api/schema.gen.json`, extracted from the same OpenAPI schemas and embedded into the server.
@@ -116,7 +130,7 @@ make backend-build           # Generate and build backend/bin/server
 
 Install frontend dependencies first with `cd frontend && npm ci`. Go downloads its pinned generator on first use. Frontend build, dev, lint, and test scripts generate the client before running. Backend Make targets generate the server bindings before building, running, linting, formatting, or testing. This also covers `make check`, the pre-push hook, and existing CI workflows. Edit the spec or generator configuration; do not edit generated files. Generated TS files skip lint/format checks but remain type-checked. Go does not run generation automatically for direct `go build`, `go run`, or `go test` commands: use the Make targets, or run `go generate ./internal/api` from `backend/` first.
 
-Frontend callers can import `reviewSnippet` and request/response types from `frontend/src/api/client.ts`. The client uses the page's origin, including Vite's `/api` proxy during development. Calls return typed `data` or `error` with the HTTP response; callers still need to handle network errors. The UI continues to use the mock API.
+Frontend callers can import `reviewSnippet` and request/response types from `frontend/src/api/client.ts`. The client uses the page's origin, including Vite's `/api` proxy during development. Calls return typed `data` or `error` with the HTTP response; callers still need to handle network errors. The UI uses this client through `src/api/reviews.ts`, verifies the returned source hash, preserves the server review metadata and full guides, and maps severities into editor highlights. Out-of-date or superseded results are rejected before saving.
 
 The review service implements the generated `api.StrictServerInterface`; generated routes handle JSON binding and response serialization. An HTTP wrapper enforces body limits and request schema validation before binding.
 
